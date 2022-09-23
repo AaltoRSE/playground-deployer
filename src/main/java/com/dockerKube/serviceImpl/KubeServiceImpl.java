@@ -121,6 +121,24 @@ public class KubeServiceImpl implements KubeService {
 		return containerName;
 	}
 
+
+	/**
+	 *
+	 * add solution icon and description to zip file: solution_icon.jpg and solution_description.html
+	 */
+	public void addSolutionInfos(DeploymentBean dBean, HashMap<String, ByteArrayOutputStream> streammap) throws Exception {
+		CommonDataServiceRestClientImpl cmnDataService = getClient(dBean.getCmnDataUrl(), dBean.getCmnDataUser(), dBean.getCmnDataPd());
+		ByteArrayOutputStream iout=new ByteArrayOutputStream();
+		iout.write(cmnDataService.getSolutionPicture(dBean.getSolutionId()));
+		streammap.put("solution_icon.zip", iout);
+
+		ByteArrayOutputStream dout=new ByteArrayOutputStream();
+		String catalogId=cmnDataService.getSolutionCatalogs(dBean.getSolutionId()).get(0).getCatalogId();
+		String description=cmnDataService.getRevCatDescription(dBean.getSolutionRevisionId(), catalogId).getDescription();
+		dout.write(description.getBytes());
+		streammap.put("solution_description.html", dout);
+	}
+
 	public byte[] singleSolutionDetails(DeploymentBean dBean, String imageTag, String singleModelPort,
 			String solutionToolKitType) throws Exception {
 		logger.debug("singleSolutionDetails start");
@@ -649,6 +667,7 @@ public class KubeServiceImpl implements KubeService {
 			}
 
 		}
+		addSolutionInfos(dBean, hmap);
 
 		baos = new ByteArrayOutputStream();
 		ZipOutputStream zos = new ZipOutputStream(baos);
@@ -1357,6 +1376,8 @@ public class KubeServiceImpl implements KubeService {
 			bOutput = new ByteArrayOutputStream(12);
 			bOutput.write(dBean.getSolutionName().getBytes());
 			hmap.put("modelname.txt", bOutput);
+
+			addSolutionInfos(dBean, hmap);
 
 			if (dBean.getSolutionYml() != null && !"".equals(dBean.getSolutionYml())) {
 				bOutput = new ByteArrayOutputStream(12);
