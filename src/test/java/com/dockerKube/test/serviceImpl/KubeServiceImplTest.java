@@ -54,6 +54,9 @@ public class KubeServiceImplTest {
 		dBean.setDockerInfoJson("dockerinfo.json");
 		dBean.setSolutionYml("solution.yml");
 		dBean.setDataBrokerJson("dataBroker.json");
+		dBean.setCmnDataPd("password");
+		dBean.setCmnDataUrl("https://dataurl");
+		dBean.setCmnDataUser("datauser");
 		byteArray=impl.createCompositeSolutionZip(dBean);
 		assertNotNull(byteArray);
 		logger.info("createCompositeSolutionZipTest End");

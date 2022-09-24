@@ -126,17 +126,20 @@ public class KubeServiceImpl implements KubeService {
 	 *
 	 * add solution icon and description to zip file: solution_icon.jpg and solution_description.html
 	 */
-	public void addSolutionInfos(DeploymentBean dBean, HashMap<String, ByteArrayOutputStream> streammap) throws Exception {
-		CommonDataServiceRestClientImpl cmnDataService = getClient(dBean.getCmnDataUrl(), dBean.getCmnDataUser(), dBean.getCmnDataPd());
+	public void addSolutionInfos(DeploymentBean dBean, HashMap<String, ByteArrayOutputStream> streammap) {
 		ByteArrayOutputStream iout=new ByteArrayOutputStream();
-		iout.write(cmnDataService.getSolutionPicture(dBean.getSolutionId()));
-		streammap.put("solution_icon.zip", iout);
-
 		ByteArrayOutputStream dout=new ByteArrayOutputStream();
-		String catalogId=cmnDataService.getSolutionCatalogs(dBean.getSolutionId()).get(0).getCatalogId();
-		String description=cmnDataService.getRevCatDescription(dBean.getSolutionRevisionId(), catalogId).getDescription();
-		dout.write(description.getBytes());
-		streammap.put("solution_description.html", dout);
+		try {
+			CommonDataServiceRestClientImpl cmnDataService = getClient(dBean.getCmnDataUrl(), dBean.getCmnDataUser(), dBean.getCmnDataPd());
+			iout.write(cmnDataService.getSolutionPicture(dBean.getSolutionId()));
+			String catalogId = cmnDataService.getSolutionCatalogs(dBean.getSolutionId()).get(0).getCatalogId();
+			String description = cmnDataService.getRevCatDescription(dBean.getSolutionRevisionId(), catalogId).getDescription();
+			dout.write(description.getBytes());
+			streammap.put("solution_icon.zip", iout);
+			streammap.put("solution_description.html", dout);
+		} catch (Exception e) {
+			logger.error("error getting solutionInfos()", e);
+		}
 	}
 
 	public byte[] singleSolutionDetails(DeploymentBean dBean, String imageTag, String singleModelPort,
