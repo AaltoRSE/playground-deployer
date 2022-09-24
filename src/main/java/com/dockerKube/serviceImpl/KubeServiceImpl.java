@@ -135,7 +135,7 @@ public class KubeServiceImpl implements KubeService {
 			String catalogId = cmnDataService.getSolutionCatalogs(dBean.getSolutionId()).get(0).getCatalogId();
 			String description = cmnDataService.getRevCatDescription(dBean.getSolutionRevisionId(), catalogId).getDescription();
 			dout.write(description.getBytes());
-			streammap.put("solution_icon.zip", iout);
+			streammap.put("solution_icon.png", iout);
 			streammap.put("solution_description.html", dout);
 		} catch (Exception e) {
 			logger.error("error getting solutionInfos()", e);
