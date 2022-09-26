@@ -33,8 +33,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import org.acumos.cds.client.CommonDataServiceRestClientImpl;
-import org.acumos.cds.domain.MLPArtifact;
-import org.acumos.cds.domain.MLPSolutionRevision;
+import org.acumos.cds.domain.*;
 import org.acumos.nexus.client.NexusArtifactClient;
 import org.acumos.nexus.client.RepositoryLocation;
 import org.slf4j.Logger;
@@ -61,9 +60,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
-import org.acumos.cds.domain.MLPSolution;
 import org.acumos.cds.CodeNameType;
-import org.acumos.cds.domain.MLPCodeNamePair;
 
 @Service
 public class KubeServiceImpl implements KubeService {
@@ -129,12 +126,20 @@ public class KubeServiceImpl implements KubeService {
 	public void addSolutionInfos(DeploymentBean dBean, HashMap<String, ByteArrayOutputStream> streammap) {
 		ByteArrayOutputStream iout=new ByteArrayOutputStream();
 		ByteArrayOutputStream dout=new ByteArrayOutputStream();
+		String description=null;
 		try {
 			CommonDataServiceRestClientImpl cmnDataService = getClient(dBean.getCmnDataUrl(), dBean.getCmnDataUser(), dBean.getCmnDataPd());
 			iout.write(cmnDataService.getSolutionPicture(dBean.getSolutionId()));
-			String catalogId = cmnDataService.getSolutionCatalogs(dBean.getSolutionId()).get(0).getCatalogId();
-			String description = cmnDataService.getRevCatDescription(dBean.getSolutionRevisionId(), catalogId).getDescription();
-			dout.write(description.getBytes());
+			for(MLPCatalog catalog: cmnDataService.getSolutionCatalogs(dBean.getSolutionId())) {
+				String catalogId = catalog.getCatalogId();
+				try {
+					description = cmnDataService.getRevCatDescription(dBean.getSolutionRevisionId(), catalogId).getDescription();
+					dout.write(description.getBytes());
+					break;
+				} catch (Exception x) {
+					logger.error("no description found in catalog: "+catalog.getName());
+				}
+			}
 			streammap.put("solution_icon.png", iout);
 			streammap.put("solution_description.html", dout);
 		} catch (Exception e) {
