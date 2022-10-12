@@ -88,6 +88,13 @@ def image_list = []
 
 task createPlaygroundImage(type: DockerBuildImage) {
 	dependsOn createPlaygroundDockerfile
+
+	docker {
+		springBootApplication {
+			baseImage = 'eclipse-temurin:17-jre'
+		}
+	}
+
 	if(System.properties['docker.push.registry']) {
 		images.add("${System.properties['docker.push.registry']}/${project.group}/${project.name}:${project.version}")
 	} else {
