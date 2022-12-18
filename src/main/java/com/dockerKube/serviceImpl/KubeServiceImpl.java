@@ -1347,7 +1347,7 @@ public class KubeServiceImpl implements KubeService {
 	}
 
 	/**
-	 * createSingleSolutionZip method is used to get create zip
+	 * createSingleSolutionZip method is used to get create zip and always includes jupyter-connect and shared-folder
 	 * 
 	 * @param dBean - object of deployment bean
 	 * @return baos - byte string
@@ -1362,14 +1362,21 @@ public class KubeServiceImpl implements KubeService {
 		CommonUtil util = new CommonUtil();
 		if (dBean != null) {
 			bOutput = new ByteArrayOutputStream(12);
-
-			bOutput = new ByteArrayOutputStream(12);
 			String kubeClientFile = dBean.getFolderPath() + "/" + DockerKubeConstants.KUBE_PATH_CLIENT_SCRIPT;
 			String kubeClientScript = util.getFileDetails(kubeClientFile);
 			if (kubeClientScript != null && !"".equals(kubeClientScript)) {
 				bOutput.write(kubeClientScript.getBytes());
 				hmap.put(DockerKubeConstants.KUBE_CLIENT_SCRIPT, bOutput);
 				logger.debug(DockerKubeConstants.KUBE_CLIENT_SCRIPT + "   " + bOutput);
+			}
+
+			bOutput = new ByteArrayOutputStream(12);
+			String jupyterDeploymentFile = dBean.getFolderPath() + "/" + DockerKubeConstants.PATH_JUPYTER_DEPLOYMENT_SCRIPT;
+			String jupyterDeploymentScript = util.getFileDetails(jupyterDeploymentFile);
+			if (jupyterDeploymentScript != null && !"".equals(jupyterDeploymentScript)) {
+				bOutput.write(jupyterDeploymentScript.getBytes());
+				hmap.put(DockerKubeConstants.JUPYTER_DEPLOYMENT_SCRIPT, bOutput);
+				logger.debug(DockerKubeConstants.JUPYTER_DEPLOYMENT_SCRIPT + "   " + bOutput);
 			}
 
 			bOutput = new ByteArrayOutputStream(12);
@@ -1380,6 +1387,11 @@ public class KubeServiceImpl implements KubeService {
 				hmap.put(DockerKubeConstants.KUBE_DEPLOYMENT_FILE, bOutput);
 				logger.debug(DockerKubeConstants.KUBE_DEPLOYMENT_FILE + "   " + bOutput);
 			}
+
+			bOutput = new ByteArrayOutputStream(12);
+			String pvcYAML = getPersistentVolumeClaim(DockerKubeConstants.PVC_NAME_YAML);
+			bOutput.write(pvcYAML.getBytes());
+			hmap.put("pvc.yaml", bOutput);
 
 			bOutput = new ByteArrayOutputStream(12);
 			bOutput.write(dBean.getSolutionName().getBytes());

@@ -87,7 +87,7 @@ class Deployment:
         # print("is_service(", file_name, "returning", ret)
         return ret
 
-    def set_image_pull_policy(self, deployment_file_name, new_policy='Always'):
+    def set_image_pull_policy(self, deployment_file_name, new_policy):
         '''
         Permits to update a deployment YAML file so that the image will always be re-downloaded by kubernetes
         This is very useful for development/debugging but should not be used in production
@@ -128,12 +128,12 @@ class Deployment:
         with open(file_name, "w") as f:
             yaml.dump(doc, f)
 
-    def apply_deployment_services(self, file_name, node_port, namespace):
+    def apply_deployment_services(self, file_name, node_port, namespace, image_pull_policy):
         print("apply_deployment_services file_name=", file_name)
         if self.is_service(file_name):
             self.set_node_port(file_name, node_port)
         else:
-            self.set_image_pull_policy(file_name, 'Always')
+            self.set_image_pull_policy(file_name, image_pull_policy)
 
         process = subprocess.run(['kubectl', '-n', namespace, 'apply', '-f', file_name], check=True,
                                  stdout=subprocess.PIPE,
@@ -151,7 +151,7 @@ class Deployment:
         output = process.stdout
         print("delete_deployment_services output %s" % output)
 
-    def web_ui_service(self, file_name, namespace, node_port):
+    def web_ui_service(self, file_name, namespace, node_port, image_pull_policy):
         print("web_ui_service file_name =", file_name, "node_port =", node_port)
         port_name = "webui"
         target_port = 8062
@@ -182,7 +182,7 @@ class Deployment:
             with open(file_name_new, "w") as f:
                 yaml.dump(doc, f)
 
-        return self.apply_deployment_services(file_name_new, node_port, namespace)
+        return self.apply_deployment_services(file_name_new, node_port, namespace, image_pull_policy)
 
     def get_namespaces(self):
         process = subprocess.run(['kubectl', 'get', 'namespaces'], check=True,
@@ -238,13 +238,21 @@ def main():
     my_parser = argparse.ArgumentParser()
     my_parser.add_argument('--namespace', '-n', action='store', type=str, required=True,
                            help='name of namespace is required ')
-    # Execute parse_args()
+    my_parser.add_argument('--image_pull_policy', '-ipp', action='store', type=str, required=False, default="Always",
+                           help='imagepullpolicy for kubernetes deployment ')
+    my_parser.add_argument('--base_path'         , '-bp',  action='store', type=str, required=False, default=os.getcwd(),
+                           help='basepath of solution')
+
     args = my_parser.parse_args()
-    # print(args.namespace)
 
     namespace = args.namespace
-    path_dir = os.getcwd()
-    deployment_dir = path_dir + "/deployments"
+    image_pull_policy=args.image_pull_policy
+    print(f"image_pull_policy = {image_pull_policy}")
+
+    base_path=args.base_path
+    print(f"base_path = {base_path}")
+
+    deployment_dir = os.path.join(base_path,"deployments")
     deployment = Deployment(path_dir=deployment_dir)
     output = deployment.get_namespaces()
 
@@ -259,19 +267,19 @@ def main():
                 if deployment.is_service(file):
                     node_port = deployment.get_next_free_port()
                     node_port_web_ui = deployment.get_next_free_port()
-                    names.append(deployment.web_ui_service(file, namespace, node_port_web_ui))
-                names.append(deployment.apply_deployment_services(file, node_port, namespace))
+                    names.append(deployment.web_ui_service(file, namespace, node_port_web_ui,image_pull_policy=image_pull_policy))
+                names.append(deployment.apply_deployment_services(file, node_port, namespace, image_pull_policy=image_pull_policy))
             # deployment.delete_deployment_services(names)
             print(deployment.port_mapping)
 
             dockerInfo = DockerInfo()
-            dockerfilename = path_dir + "/dockerinfo.json"
+            dockerfilename = os.path.join(base_path,"dockerinfo.json")
             if os.path.exists(dockerfilename):
                 dockerInfo.update_node_port(deployment.port_mapping, dockerfilename)
         else:
             print("Path to the target directory is invalid :  ")
 
-        if deployment.is_orchestrator_present("orchestrator_client.py", path_dir):
+        if deployment.is_orchestrator_present("orchestrator_client.py", base_path):
             print("Node IP-address : " + deployment.get_node_ip_address(namespace))
             print("Orchestrator Port is : " + str(deployment.port_mapping.get('orchestrator')))
             print("Please run python orchestrator_client/orchestrator_client.py --endpoint=%s:%d --basepath=./" % (deployment.get_node_ip_address(namespace), deployment.port_mapping.get('orchestrator')))
