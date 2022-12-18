@@ -9,7 +9,7 @@ plugins {
 
 
 group = 'graphene'
-version = '3.16'
+version = '3.17'
 sourceCompatibility = '17'
 println 'build revision: '+versioning.info.full+versioning.info.dirty
 
@@ -78,6 +78,7 @@ task createPlaygroundDockerfile(type: Dockerfile) {
 	dependsOn copyTask
 	from 'eclipse-temurin:17-jre'
 	addFile "private/kubernetes-client-script.py", "/maven/home/deploy/private/kubernetes-client-script.py"
+	addFile "private/jupyter-deployment-script.py", "/maven/home/deploy/private/jupyter-deployment-script.py"
 	addFile "deployment-readme.txt", "/maven/home/docs/deployment-readme.txt"
 	addFile "private/orchestrator_client/orchestrator_client.py", "/maven/home/deploy/private/orchestrator_client/orchestrator_client.py"
 	addFile "private/orchestrator_client/status_client.py", "/maven/home/deploy/private/orchestrator_client/status_client.py"
