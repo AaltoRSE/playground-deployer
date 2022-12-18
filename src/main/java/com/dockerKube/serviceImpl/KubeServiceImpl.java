@@ -1391,7 +1391,7 @@ public class KubeServiceImpl implements KubeService {
 			bOutput = new ByteArrayOutputStream(12);
 			String pvcYAML = getPersistentVolumeClaim(DockerKubeConstants.PVC_NAME_YAML);
 			bOutput.write(pvcYAML.getBytes());
-			hmap.put("pvc.yaml", bOutput);
+			hmap.put("deployments/pvc.yaml", bOutput);
 
 			bOutput = new ByteArrayOutputStream(12);
 			bOutput.write(dBean.getSolutionName().getBytes());
