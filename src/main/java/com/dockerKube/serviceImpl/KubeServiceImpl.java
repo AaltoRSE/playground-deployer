@@ -722,7 +722,7 @@ public class KubeServiceImpl implements KubeService {
 		String modelName = dBean.getSolutionName();
 		String serviceYml = getSingleSolutionService(singleModelPort, dBean, modelName);
 		String deploymentYml = getSingleSolutionDeployment(imageTag, dBean, modelName);
-		String pvcYAML = getPersistentVolumeClaim(modelName);
+		String pvcYAML = getPersistentVolumeClaim("shared-folder");
 
 		deployments.put("deployments/service.yaml", serviceYml);
 		deployments.put("deployments/deployment.yaml", deploymentYml);

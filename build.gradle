@@ -9,7 +9,7 @@ plugins {
 
 
 group = 'graphene'
-version = '3.21'
+version = '3.22'
 sourceCompatibility = '17'
 println 'build revision: '+versioning.info.full+versioning.info.dirty
 
