@@ -1415,14 +1415,14 @@ public class KubeServiceImpl implements KubeService {
 			}
 
 			bOutput = new ByteArrayOutputStream(12);
-			String depFile = util.getFileDetails(dBean.getFolderPath()+"/jupyter-deployment.yaml");
+			String depFile = util.getFileDetails(dBean.getFolderPath()+"/deploy/private/jupyter-deployment.yaml");
 			if (depFile != null && !"".equals(depFile)) {
 				bOutput.write(depFile.getBytes());
 				hmap.put("deployments/jupyter-deployment.yaml", bOutput);
 			}
 
 			bOutput = new ByteArrayOutputStream(12);
-			String serFile = util.getFileDetails(dBean.getFolderPath()+"/jupyter-service.yaml");
+			String serFile = util.getFileDetails(dBean.getFolderPath()+"/deploy/private/jupyter-service.yaml");
 			if (serFile != null && !"".equals(serFile)) {
 				bOutput.write(serFile.getBytes());
 				hmap.put("deployments/jupyter-service.yaml", bOutput);
