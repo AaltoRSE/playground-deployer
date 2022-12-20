@@ -1,0 +1,37 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jupyter-connect
+  labels:
+    app: jupyter-connect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jupyter-connect
+  template:
+    metadata:
+      labels:
+        app: jupyter-connect
+    spec:
+      imagePullSecrets:
+      - name: acumos-registry
+      containers:
+      - name: jupyter-connect
+      - env:
+          - name: SHARED_FOLDER_PATH
+            value: /data/shared
+        image: hub.cc-asp.fraunhofer.de/recognaize-acumos/jupyter-connect
+        ports:
+        - name: protobuf-api
+          containerPort: 8061
+        - name: webui
+          containerPort: 8062
+        volumeMounts:
+          - mountPath: /data/shared
+            name: jupyter-connect
+      volumes:
+        - name: jupyter-connect
+          persistentVolumeClaim:
+            claimName: shared-folder
