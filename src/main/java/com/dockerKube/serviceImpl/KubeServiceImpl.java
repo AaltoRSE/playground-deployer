@@ -163,13 +163,12 @@ public class KubeServiceImpl implements KubeService {
 
 		List<ContainerBean> contList = null;
 		ParseJSON parseJson = new ParseJSON();
-		/** Blueprint.json **/
+		/** get proto file **/
 		ByteArrayOutputStream byteArrayOutputStream = getBluePrintNexusSingleSolution(dBean.getSolutionId(),
 				dBean.getSolutionRevisionId(), dBean.getCmnDataUrl(), dBean.getCmnDataUser(), dBean.getCmnDataPd(),
 				dBean.getNexusUrl(), dBean.getNexusUserName(), dBean.getNexusPd());
 		logger.debug("byteArrayOutputStream " + byteArrayOutputStream);
 		dBean.setBluePrintjson(byteArrayOutputStream.toString());
-		/** Proto file code **/
 
 		String containerName = getContainerName(dBean.getSolutionId(), dBean.getSolutionRevisionId(),
 				dBean.getCmnDataUrl(), dBean.getCmnDataUser(), dBean.getCmnDataPd());
@@ -723,11 +722,11 @@ public class KubeServiceImpl implements KubeService {
 		String modelName = cutil.getModelName(imageTag, solutionId);
 		String serviceYml = getSingleSolutionService(singleModelPort, dBean, modelName);
 		String deploymentYml = getSingleSolutionDeployment(imageTag, dBean, modelName);
-		//String pvcYAML = getPersistentVolumeClaim(modelName);
+		String pvcYAML = getPersistentVolumeClaim(modelName);
 
 		deployments.put("deployments/service.yaml", serviceYml);
 		deployments.put("deployments/deployment.yaml", deploymentYml);
-		//deployments.put("deployments/pvc.yaml", pvcYAML);
+		deployments.put("deployments/pvc.yaml", pvcYAML);
 
 		solutionYaml = serviceYml;
 		solutionYaml = solutionYaml + deploymentYml;
@@ -867,6 +866,33 @@ public class KubeServiceImpl implements KubeService {
 		portsArrayNode.add(portsNodeWebUI);
 		containerArrayNode.add(containerNode);
 		containerNode.set(DockerKubeConstants.PORTS_DEP_YML, portsArrayNode);
+
+		// shared folder env setting
+		ArrayNode envArrayNode = containerNode.arrayNode();
+		ObjectNode env = objectMapper.createObjectNode();
+		env.put(DockerKubeConstants.ENV_NAME_DEP_YAML, DockerKubeConstants.ENV_SHARED_FOLDER_DEP_YAML);
+		env.put(DockerKubeConstants.ENV_VALUE_DEP_YAML, sharedFolderName);
+		envArrayNode.add(env);
+		containerNode.set(DockerKubeConstants.ENV, envArrayNode);
+
+		// shared folder mount
+		ArrayNode volumeMountArrayNode = containerNode.arrayNode();
+		ObjectNode volumeMount = objectMapper.createObjectNode();
+		volumeMount.put(DockerKubeConstants.MOUNTPATH_DEP_YML, sharedFolderName);
+		volumeMount.put(DockerKubeConstants.NAME_VOLUME_MOUNT_DEP_YAML, modelName);
+		volumeMountArrayNode.add(volumeMount);
+		containerNode.set(DockerKubeConstants.VOLUMEMOUNTS_DEP_YML, volumeMountArrayNode);
+
+		// shared folder claim
+		ArrayNode volmeMountArrayNode = specTempNode.arrayNode();
+		ObjectNode volumeNode = objectMapper.createObjectNode();
+		ObjectNode pvc = objectMapper.createObjectNode();
+		volumeNode.put(DockerKubeConstants.NAME_VOLUME_DEP_YAML, modelName);
+		pvc.put(DockerKubeConstants.CLAIM_NAME_DEP_YAML, DockerKubeConstants.PVC_NAME_YAML);
+		volumeNode.set(DockerKubeConstants.PVC_DEP_YAML, pvc);
+		volmeMountArrayNode.add(volumeNode);
+		specTempNode.set(DockerKubeConstants.VOLUME_DEP_YAML, volmeMountArrayNode);
+
 
 		ObjectNode imagePullSecretsNode = objectMapper.createObjectNode();
 		ArrayNode imageSecretArrayNode = containerNode.arrayNode();
@@ -1389,9 +1415,20 @@ public class KubeServiceImpl implements KubeService {
 			}
 
 			bOutput = new ByteArrayOutputStream(12);
-			String pvcYAML = getPersistentVolumeClaim(DockerKubeConstants.PVC_NAME_YAML);
-			bOutput.write(pvcYAML.getBytes());
-			hmap.put("deployments/pvc.yaml", bOutput);
+			String depFile = util.getFileDetails(dBean.getFolderPath()+"/jupyter-deployment.yaml");
+			if (depFile != null && !"".equals(depFile)) {
+				bOutput.write(depFile.getBytes());
+				hmap.put("deployments/jupyter-deployment.yaml", bOutput);
+			}
+
+			bOutput = new ByteArrayOutputStream(12);
+			String serFile = util.getFileDetails(dBean.getFolderPath()+"/jupyter-service.yaml");
+			if (serFile != null && !"".equals(serFile)) {
+				bOutput.write(serFile.getBytes());
+				hmap.put("deployments/jupyter-service.yaml", bOutput);
+			}
+
+
 
 			bOutput = new ByteArrayOutputStream(12);
 			bOutput.write(dBean.getSolutionName().getBytes());

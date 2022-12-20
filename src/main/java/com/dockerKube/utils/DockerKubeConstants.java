@@ -99,7 +99,7 @@ public class DockerKubeConstants {
 	public static final String TWO_GI_STORAGE_PVC_YAML="2Gi";
 	public static final String FIVE_GI_STORAGE_PVC_YAML="5Gi";
 	public static final String TEN_GI_STORAGE_PVC_YAML="10Gi";
-	public static final String PVC_NAME_YAML="shared_folder";
+	public static final String PVC_NAME_YAML="shared-folder";
 	
 	
 	

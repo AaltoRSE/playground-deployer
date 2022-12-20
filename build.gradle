@@ -86,6 +86,8 @@ task createPlaygroundDockerfile(type: Dockerfile) {
 	addFile	"private/orchestrator_client/orchestrator_pb2.py", "/maven/home/deploy/private/orchestrator_client/orchestrator_pb2.py"
 	addFile	"private/protobuf/orchestrator.proto", "/maven/home/deploy/private/protobuf/orchestrator.proto"
 	addFile	"private/requirements.txt", "/maven/home/deploy/private/requirements.txt"
+	addFile	"private/jupyter-deployment.yaml", "/maven/home/deploy/jupyter-deployment.yaml"
+	addFile	"private/jupyter-service.yaml", "/maven/home/deploy/jupyter-service.yaml"
 	addFile "${project.name}-${project.version}.jar", "maven/${project.name}-${project.version}.jar"
 }
 
