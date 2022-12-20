@@ -719,7 +719,7 @@ public class KubeServiceImpl implements KubeService {
 		String solutionYaml = "";
 		String solutionId = dBean.getSolutionId();
 		CommonUtil cutil = new CommonUtil();
-		String modelName = cutil.getModelName(imageTag, solutionId);
+		String modelName = dBean.getSolutionName();
 		String serviceYml = getSingleSolutionService(singleModelPort, dBean, modelName);
 		String deploymentYml = getSingleSolutionDeployment(imageTag, dBean, modelName);
 		String pvcYAML = getPersistentVolumeClaim(modelName);
@@ -871,14 +871,14 @@ public class KubeServiceImpl implements KubeService {
 		ArrayNode envArrayNode = containerNode.arrayNode();
 		ObjectNode env = objectMapper.createObjectNode();
 		env.put(DockerKubeConstants.ENV_NAME_DEP_YAML, DockerKubeConstants.ENV_SHARED_FOLDER_DEP_YAML);
-		env.put(DockerKubeConstants.ENV_VALUE_DEP_YAML, sharedFolderName);
+		env.put(DockerKubeConstants.ENV_VALUE_DEP_YAML, "/data/shared");
 		envArrayNode.add(env);
 		containerNode.set(DockerKubeConstants.ENV, envArrayNode);
 
 		// shared folder mount
 		ArrayNode volumeMountArrayNode = containerNode.arrayNode();
 		ObjectNode volumeMount = objectMapper.createObjectNode();
-		volumeMount.put(DockerKubeConstants.MOUNTPATH_DEP_YML, sharedFolderName);
+		volumeMount.put(DockerKubeConstants.MOUNTPATH_DEP_YML, "/data/shared");
 		volumeMount.put(DockerKubeConstants.NAME_VOLUME_MOUNT_DEP_YAML, modelName);
 		volumeMountArrayNode.add(volumeMount);
 		containerNode.set(DockerKubeConstants.VOLUMEMOUNTS_DEP_YML, volumeMountArrayNode);
