@@ -165,9 +165,7 @@ public class KubeServiceImpl implements KubeService {
 		List<ContainerBean> contList = null;
 		ParseJSON parseJson = new ParseJSON();
 		/** get proto file **/
-		ByteArrayOutputStream byteArrayOutputStream = getBluePrintNexusSingleSolution(dBean.getSolutionId(),
-				dBean.getSolutionRevisionId(), dBean.getCmnDataUrl(), dBean.getCmnDataUser(), dBean.getCmnDataPd(),
-				dBean.getNexusUrl(), dBean.getNexusUserName(), dBean.getNexusPd());
+		ByteArrayOutputStream byteArrayOutputStream = getBluePrintNexusSingleSolution(dBean);
 		logger.debug("byteArrayOutputStream " + byteArrayOutputStream);
 		dBean.setBluePrintjson(byteArrayOutputStream.toString());
 
@@ -342,35 +340,31 @@ public class KubeServiceImpl implements KubeService {
 		return parseJson.removeSharedFolder(byteArrayOutputStream.toString());
 	}
 
-	public ByteArrayOutputStream getBluePrintNexusSingleSolution(String solutionId, String revisionId,
-			String datasource, String userName, String dataPd, String nexusUrl, String nexusUserName, String nexusPd)
-			throws Exception {
+	public ByteArrayOutputStream getBluePrintNexusSingleSolution(DeploymentBean dbean) throws Exception {
 		logger.debug(" getBluePrintNexus Start");
-		logger.debug("solutionId " + solutionId);
-		logger.debug("revisionId " + revisionId);
-		List<MLPSolutionRevision> mlpSolutionRevisionList;
-		String solutionRevisionId = revisionId;
+		logger.debug("solutionId " + dbean.getSolutionId());
+		logger.debug("revisionId " + dbean.getSolutionRevisionId());
+		String solutionRevisionId = dbean.getSolutionRevisionId();
 		List<MLPArtifact> mlpArtifactList;
 		String nexusURI = "";
-		String bluePrintStr = "";
 		ByteArrayOutputStream byteArrayOutputStream = null;
-		CommonDataServiceRestClientImpl cmnDataService = getClient(datasource, userName, dataPd);
+		CommonDataServiceRestClientImpl cmnDataService = getClient(dbean.getCmnDataUrl(), dbean.getCmnDataUser(), dbean.getCmnDataPd());
 		if (null != solutionRevisionId) {
 			// 3. Get the list of Artifiact for the SolutionId and SolutionRevisionId.
-			mlpArtifactList = cmnDataService.getSolutionRevisionArtifacts(solutionId, solutionRevisionId);
+			mlpArtifactList = cmnDataService.getSolutionRevisionArtifacts(dbean.getSolutionId(), solutionRevisionId);
 			if (null != mlpArtifactList && !mlpArtifactList.isEmpty()) {
 				nexusURI = mlpArtifactList.stream().filter(mlpArt -> mlpArt.getArtifactTypeCode()
 						.equalsIgnoreCase(DockerKubeConstants.ARTIFACT_TYPE_PROTO)).findFirst().get().getUri();
 				logger.debug(" Nexus URI : " + nexusURI);
 				if (null != nexusURI) {
-					NexusArtifactClient nexusArtifactClient = nexusArtifactClient(nexusUrl, nexusUserName, nexusPd);
+					NexusArtifactClient nexusArtifactClient = nexusArtifactClient(dbean.getNexusUrl(), dbean.getNexusUserName(), dbean.getNexusPd());
 					byteArrayOutputStream = nexusArtifactClient.getArtifact(nexusURI);
 
 				}
 			}
 			for (MLPArtifact mlpArtifact : mlpArtifactList) {
 				if (mlpArtifact.getArtifactTypeCode().equals("MI")) {
-					String protoFolderName = "microservice" + "/" + mlpArtifact.getName();
+					String protoFolderName = "microservice" + "/" + dbean.getSolutionName()+".proto";
 					deployments.put(protoFolderName, byteArrayOutputStream.toString());
 				}
 
