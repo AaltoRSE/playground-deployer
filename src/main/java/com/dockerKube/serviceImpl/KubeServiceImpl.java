@@ -158,7 +158,8 @@ public class KubeServiceImpl implements KubeService {
 		CommonDataServiceRestClientImpl cmnDataService = getClient(dBean.getCmnDataUrl(), dBean.getCmnDataUser(), dBean.getCmnDataPd());
 		MLPSolution solution=cmnDataService.getSolution(dBean.getSolutionId());
 		logger.info("solution name: "+solution.getName()+" - solutionId: "+dBean.getSolutionId());
-		dBean.setSolutionName(solution.getName());
+		// kubernetes only accepts lowercase labels
+		dBean.setSolutionName(solution.getName().toLowerCase());
 
 
 		List<ContainerBean> contList = null;
