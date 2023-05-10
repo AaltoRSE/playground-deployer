@@ -976,13 +976,6 @@ public class KubeServiceImpl implements KubeService {
 			portsNode.put(DockerKubeConstants.NAME_YML, DockerKubeConstants.PROTOBUF_API_DEP_YML);
 		}
 
-		if (nodeType != null && nodeType.equalsIgnoreCase(DockerKubeConstants.BLUEPRINT_CONTAINER)) {
-			portsNode.put(DockerKubeConstants.NODEPORT_YML, dBen.getBluePrintNodePort());
-		} else if (nodeType != null && nodeType.equalsIgnoreCase(DockerKubeConstants.DATA_BROKER)) {
-			portsNode.put(DockerKubeConstants.NODEPORT_YML, dBen.getDataBrokerNodePort());
-		} else if (nodeType != null && nodeType.equalsIgnoreCase(DockerKubeConstants.PROBE_CONTAINER_NAME)) {
-			portsNode.put(DockerKubeConstants.NODEPORT_YML, dBen.getProbeNodePort());
-		}
 
 		if (nodeType != null && nodeType.equalsIgnoreCase(DockerKubeConstants.BLUEPRINT_CONTAINER)) {
 			portsNode.put(DockerKubeConstants.PORT_YML, dBen.getBluePrintPort());
