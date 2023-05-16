@@ -3,9 +3,9 @@ import re
 import glob
 import yaml
 import json
-import socket
 import subprocess
 import argparse
+import shlex
 
 
 class DockerInfo:
@@ -37,41 +37,28 @@ class DockerInfo:
 
 
 class Deployment:
-    def __init__(self, start_port=30000, end_port=32767, path_dir=""):
-        self.path_dir = path_dir
+    def __init__(self, namespace, start_port=30000, end_port=32767, base_path=""):
+        self.namespace = namespace
+        self.base_path = base_path
         self.start_port = start_port
         self.end_port = end_port
         self.port_mapping = dict()
-        self.free_ports = None
+        self.port = None
 
-    def determine_free_ports(self):
-        # ask which ports are used
-        process = subprocess.run([
-            'kubectl', 'get', 'svc', '--all-namespaces', '-o',
-            'go-template={{range .items}}{{range.spec.ports}}{{if .nodePort}}{{.nodePort}}{{"\\n"}}{{end}}{{end}}{{end}}'],
-            check=True, stdout=subprocess.PIPE, universal_newlines=True)
+        if not self.is_valid_namespace():
+            raise("deployment is invalid")
+        if not os.path.isdir(self.get_deployment_dir()):
+            raise("Path to the target directory is invalid :  ")
 
-        # get the used ports into a set
-        used_ports = set([
-            int(x.strip()) for x in process.stdout.split('\n') if x.strip() != ''
-        ])
-        # print("determine_free_ports: used_ports=%s" % used_ports)
+    def get_deployment_dir(self):
+        return os.path.join(self.base_path,"deployments")
 
-        # create the list of free ports
-        self.free_ports = [
-            p
-            for p in range(self.start_port, self.end_port + 1)
-            if p not in used_ports
-        ]
-        # print("determine_free_ports: free_ports=%s" % self.free_ports)
-
-    def get_next_free_port(self) -> int:
-        if self.free_ports is None:
-            self.determine_free_ports()
-        if len(self.free_ports) > 0:
-            return self.free_ports.pop(0)
-        else:
-            raise RuntimeError("There is no available free port in your max_port range")
+    def get_next_free_port(self):
+        if(self.port is None):
+            self.port = 8061
+        else: 
+            self.port = self.port + 1
+        return self.port
 
     def get_current_dir(self):
         return os.getcwd()
@@ -79,30 +66,21 @@ class Deployment:
     def is_service(self, file_name):
         with open(file_name) as f:
             doc = yaml.safe_load(f)
-        ret = None
-        if doc['kind'] == "Service":
-            ret = True
-        else:
-            ret = False
-        # print("is_service(", file_name, "returning", ret)
-        return ret
+        return doc['kind'] == "Service"
 
     def set_image_pull_policy(self, deployment_file_name, new_policy):
-        '''
-        Permits to update a deployment YAML file so that the image will always be re-downloaded by kubernetes
-        This is very useful for development/debugging but should not be used in production
-        '''
         with open(deployment_file_name) as f:
             doc = yaml.safe_load(f)
 
         try:
-            for c in doc['spec']['template']['spec']['containers']:
-                old_policy = c.get('imagePullPolicy', None)
+            containers = doc['spec']['template']['spec']['containers']
+            for container in containers:
+                old_policy = container.get('imagePullPolicy', None)
                 if old_policy is not None and old_policy != new_policy:
                     print("set_image_pull_policy changing imagePullPolicy from", old_policy, "to", new_policy)
                 elif old_policy is None:
                     print("set_image_pull_policy setting imagePullPolicy to", new_policy)
-                c['imagePullPolicy'] = new_policy
+                container['imagePullPolicy'] = new_policy
 
             with open(deployment_file_name, "w") as f:
                 yaml.dump(doc, f)
@@ -110,87 +88,105 @@ class Deployment:
             # if we process a file that is not a deployment - warn
             print("WARNING: set_image_pull_policy encountered incompatible input file", deployment_file_name)
 
-    def set_node_port(self, file_name, node_port):
-        print("set_node_port in", file_name, "to", node_port)
+    def set_port(self, file_name, port):
+        print("set_port in", file_name, "to", port)
         with open(file_name) as f:
             doc = yaml.safe_load(f)
 
-        # Tags are hardcoded according to template of kubernetes client
-
-        doc['spec']['ports'][0]['nodePort'] = node_port
-        ### port is also same as node_port
-        doc['spec']['ports'][0]['port'] = node_port
+        doc['spec']['ports'][0]['port'] = port
 
         name = doc['metadata']['name']
-
-        self.port_mapping[name] = node_port
+        self.port_mapping[name] = port
 
         with open(file_name, "w") as f:
             yaml.dump(doc, f)
 
-    def apply_deployment_services(self, file_name, node_port, namespace, image_pull_policy):
-        print("apply_deployment_services file_name=", file_name)
+    def get_node_port(self, service):
+        process = subprocess.run([
+            'kubectl', '-n', self.namespace, 'get', 'svc', service, '-o',
+            'go-template={{range .spec.ports}}{{if .nodePort}}{{.nodePort}}{{end}}{{end}}'],
+            check=True, stdout=subprocess.PIPE, universal_newlines=True)
+
+        return int(process.stdout)
+
+    def update_yaml_ports(self, file_name):
+        with open(file_name) as f:
+            doc = yaml.safe_load(f)
+
+        service_name = doc['metadata']['name']
+        node_port = self.get_node_port(service_name)
+        
+        print("set_node_port in", file_name, "to", node_port)
+        doc['spec']['ports'][0]['nodePort'] = node_port
+        doc['spec']['ports'][0]['port'] = node_port
+
+        self.port_mapping[service_name] = node_port
+
+        with open(file_name, "w") as f:
+            yaml.dump(doc, f)
+
+    def apply_yaml_process(self, file_name):
+        process = subprocess.run(['kubectl', '-n', self.namespace, 'apply', '-f', file_name], check=True,
+                                 stdout=subprocess.PIPE,
+                                 universal_newlines=True)
+        return process
+    
+    def apply_yaml(self, file_name, image_pull_policy):
+        print("apply_yaml:", file_name)
+
         if self.is_service(file_name):
-            self.set_node_port(file_name, node_port)
+            port = self.get_next_free_port()
+            self.set_port(file_name, port)
         else:
             self.set_image_pull_policy(file_name, image_pull_policy)
 
-        process = subprocess.run(['kubectl', '-n', namespace, 'apply', '-f', file_name], check=True,
-                                 stdout=subprocess.PIPE,
-                                 universal_newlines=True)
+        process = self.apply_yaml_process(file_name)
+
+        if self.is_service(file_name):
+            self.update_yaml_ports(file_name=file_name)
+            process = self.apply_yaml_process(file_name)
+
         output = process.stdout
         name = output.split(" ")
         print("  apply got %s" % name)
         return name[0]
 
-    def delete_deployment_services(self, names, namespace):
+    def delete_deployment_services(self, names):
         for name in names:
-            process = subprocess.run(['kubectl', '-n', namespace, 'delete', str(name)], check=True,
+            process = subprocess.run(['kubectl', '-n', self.namespace, 'delete', str(name)], check=True,
                                      stdout=subprocess.PIPE,
                                      universal_newlines=True)
         output = process.stdout
         print("delete_deployment_services output %s" % output)
 
-    def web_ui_service(self, file_name, namespace, node_port, image_pull_policy):
-        print("web_ui_service file_name =", file_name, "node_port =", node_port)
-        port_name = "webui"
-        target_port = 8062
-        with open(file_name) as f:
+    def create_web_ui_service_yaml(self, file_service):
+        print("file_name of service yaml =", file_service)        
+        with open(file_service) as f:
             doc = yaml.safe_load(f)
 
-        # Value is hardcoded according to template of kubernetes client
-        if not "webui" in doc['metadata']['name']:
-            print("  added webui suffix")
-            name1 = (doc['metadata']['name']) + "webui"
-            doc['metadata']['name'] = name1
-            # doc['spec']['selector']['app'] = name1
-
+        port_name = "webui"
+        target_port = 8062
+        name = (doc['metadata']['name']) + "webui"
+        doc['metadata']['name'] = name
+            
         doc['spec']['ports'][0]['name'] = port_name
-        doc['spec']['ports'][0]['nodePort'] = node_port
-        doc['spec']['ports'][0]['port'] = node_port
         doc['spec']['ports'][0]['targetPort'] = target_port
 
-        name = doc['metadata']['name']
-        self.port_mapping[name] = node_port
+        assert file_service.endswith('.yaml')
+        file_service_web_ui = file_service[:-5] + '_webui.yaml'
+        with open(file_service_web_ui, "w") as f:
+            yaml.dump(doc, f)
 
-        if "_webui.yaml" in file_name:
-            with open(file_name, "w") as f:
-                yaml.dump(doc, f)
-        else:
-            assert file_name.endswith('.yaml')
-            file_name_new = file_name[:-5] + '_webui.yaml'
-            with open(file_name_new, "w") as f:
-                yaml.dump(doc, f)
-
-        return self.apply_deployment_services(file_name_new, node_port, namespace, image_pull_policy)
+        return file_service_web_ui
 
     def get_namespaces(self):
         process = subprocess.run(['kubectl', 'get', 'namespaces'], check=True,
                                  stdout=subprocess.PIPE,
                                  universal_newlines=True)
-        output = process.stdout
-        print("get_namespaces: output %s type %s" % (output, type(output)))
-        return output
+        namespaces = process.stdout
+        print("existing namespaces:")
+        print(namespaces)
+        return namespaces
 
     def get_service_ip_address(self, namespce, service_name):
         process = subprocess.run(['kubectl', '-n', namespce, 'get', service_name], check=True, stdout=subprocess.PIPE,
@@ -201,24 +197,20 @@ class Deployment:
         name1 = [x for x in name if x]
         return name1[7]
 
-    def get_node_ip_address(self, namespce):
-        process = subprocess.run(['kubectl', '-n', namespce, 'get', 'node', '-o', 'wide'], check=True,
+    def get_node_ip_address(self):
+        process = subprocess.run(['kubectl', 'get', 'node', '-o', 'wide'], check=True,
                                  stdout=subprocess.PIPE,
                                  universal_newlines=True)
-        # print(process.type())
         output = process.stdout
-        name = output.split(" ")
-        name1 = [x for x in name if x]
-        return name1[14]
+        output_split = output.split(" ")
+        output_clean = [x for x in output_split if x]
+        return output_clean[14]
 
-    def is_valid_namespace(self, namespace, existing_namespace):
-
-        result = [x for x in (re.split('[  \n]', existing_namespace)) if x]
-        if result.__contains__(namespace):
-            # print(result.__contains__(namespace))
-            index = result.index(namespace)
-            # print(index)
-            if result[index + 1] == 'Active':
+    def is_valid_namespace(self):
+        existing_namespaces = [x for x in (re.split('[  \n]', self.get_namespaces())) if x]
+        if existing_namespaces.__contains__(self.namespace):
+            index = existing_namespaces.index(self.namespace)
+            if existing_namespaces[index + 1] == 'Active':
                 print("Given namespace is active ")
                 return True
             else:
@@ -226,12 +218,57 @@ class Deployment:
                 return False
         else:
             print("Name of your given namespace is invalid")
+            print("Existing namespaces are: ", existing_namespaces)
             return False
 
-    def is_orchestrator_present(self, name, path):
+    def is_orchestrator_present(self, path):
+        orchestrator_client = "orchestrator_client.py"
         for root, dirs, files in os.walk(path):
-            if name in files:
+            if orchestrator_client in files:
                 return True
+
+
+def apply_yamls(image_pull_policy, deployment):
+    yaml_files = glob.glob(deployment.get_deployment_dir() + "/*.yaml")
+    for yaml_file in yaml_files:
+        if yaml_file.endswith('webui.yaml'):
+            continue
+        if deployment.is_service(yaml_file):
+            yaml_file_web_ui = deployment.create_web_ui_service_yaml(yaml_file)
+            deployment.apply_yaml(file_name=yaml_file_web_ui, image_pull_policy=image_pull_policy)
+
+        deployment.apply_yaml(file_name=yaml_file, image_pull_policy=image_pull_policy)
+    print(deployment.port_mapping)
+
+def create_dockerinfo(base_path, deployment):
+    dockerInfo = DockerInfo()
+    dockerfilename = os.path.join(base_path,"dockerinfo.json")
+    if os.path.exists(dockerfilename):
+        dockerInfo.update_node_port(deployment.port_mapping, dockerfilename)
+
+
+def run_client(args):
+    namespace = args.namespace
+    print(f"namespace = {namespace}")
+    image_pull_policy=args.image_pull_policy
+    print(f"image_pull_policy = {image_pull_policy}")
+    base_path=args.base_path
+    print(f"base_path = {base_path}")
+
+    deployment = Deployment(namespace=namespace, base_path=base_path)
+
+
+    apply_yamls(image_pull_policy, deployment)
+
+    create_dockerinfo(base_path, deployment)
+
+    if deployment.is_orchestrator_present(base_path):
+        print("Node IP-address : " + deployment.get_node_ip_address())
+        print("Orchestrator Port is : " + str(deployment.port_mapping.get('orchestrator')))
+        print("Please run python orchestrator_client/orchestrator_client.py --endpoint=%s:%d --basepath=./" % (deployment.get_node_ip_address(), deployment.port_mapping.get('orchestrator')))
+    else:
+        print("Thank you")
+
 
 
 def main():
@@ -245,49 +282,9 @@ def main():
 
     args = my_parser.parse_args()
 
-    namespace = args.namespace
-    image_pull_policy=args.image_pull_policy
-    print(f"image_pull_policy = {image_pull_policy}")
 
-    base_path=args.base_path
-    print(f"base_path = {base_path}")
+    run_client(args)
 
-    deployment_dir = os.path.join(base_path,"deployments")
-    deployment = Deployment(path_dir=deployment_dir)
-    output = deployment.get_namespaces()
-
-    if deployment.is_valid_namespace(namespace, output):
-        if os.path.isdir(deployment.path_dir):
-            files = glob.glob(deployment.path_dir + "/*.yaml")
-            node_port = 0
-            names = []  ## this is used for deletion.
-            for file in files:
-                if file.endswith('webui.yaml'):
-                    continue
-                if deployment.is_service(file):
-                    node_port = deployment.get_next_free_port()
-                    node_port_web_ui = deployment.get_next_free_port()
-                    names.append(deployment.web_ui_service(file, namespace, node_port_web_ui,image_pull_policy=image_pull_policy))
-                names.append(deployment.apply_deployment_services(file, node_port, namespace, image_pull_policy=image_pull_policy))
-            # deployment.delete_deployment_services(names)
-            print(deployment.port_mapping)
-
-            dockerInfo = DockerInfo()
-            dockerfilename = os.path.join(base_path,"dockerinfo.json")
-            if os.path.exists(dockerfilename):
-                dockerInfo.update_node_port(deployment.port_mapping, dockerfilename)
-        else:
-            print("Path to the target directory is invalid :  ")
-
-        if deployment.is_orchestrator_present("orchestrator_client.py", base_path):
-            print("Node IP-address : " + deployment.get_node_ip_address(namespace))
-            print("Orchestrator Port is : " + str(deployment.port_mapping.get('orchestrator')))
-            print("Please run python orchestrator_client/orchestrator_client.py --endpoint=%s:%d --basepath=./" % (deployment.get_node_ip_address(namespace), deployment.port_mapping.get('orchestrator')))
-        else:
-            print("Thank you")
-    else:
-        print("Existing namespaces are")
-        print(output)
 
 
 if __name__ == '__main__':
