@@ -5,7 +5,8 @@ import yaml
 import json
 import subprocess
 import argparse
-import shlex
+from kubernetes import client, config
+import base64
 
 
 class DockerInfo:
@@ -48,6 +49,8 @@ class Deployment:
         if not self.is_valid_namespace():
             raise("deployment is invalid")
         if not os.path.isdir(self.get_deployment_dir()):
+            print(base_path)
+            print(self.get_deployment_dir())
             raise("Path to the target directory is invalid :  ")
 
     def get_deployment_dir(self):
@@ -184,8 +187,6 @@ class Deployment:
                                  stdout=subprocess.PIPE,
                                  universal_newlines=True)
         namespaces = process.stdout
-        print("existing namespaces:")
-        print(namespaces)
         return namespaces
 
     def get_service_ip_address(self, namespce, service_name):
@@ -227,6 +228,61 @@ class Deployment:
             if orchestrator_client in files:
                 return True
 
+class KubernetesSecret:
+    def __init__(self, namespace):
+        config.load_kube_config()
+        self.api_instance = client.CoreV1Api()
+        self.namespace = namespace
+    def _get_secret_data(self, path_docker_config):
+        with open(path_docker_config) as docker_config_file:
+            docker_config_json = docker_config_file.read()
+        secret_data = {
+            ".dockerconfigjson": base64.b64encode(docker_config_json.encode()).decode()
+        }
+        
+        return secret_data
+
+    def _get_secret_metadata(self, name_secret):
+        metadata = client.V1ObjectMeta(
+            name=name_secret
+        )
+        return metadata
+
+    def _configure_secret(self, metadata, secret_data):
+        secret = client.V1Secret(
+            api_version="v1",
+            kind="Secret",
+            data=secret_data,
+            metadata=metadata,
+            type="kubernetes.io/dockerconfigjson"
+        )
+        return secret
+
+    def _get_secret(self, path_docker_config, name_secret):
+        metadata = self._get_secret_metadata(name_secret)
+        secret_data = self._get_secret_data(path_docker_config)
+        return self._configure_secret(metadata, secret_data)
+        
+        
+
+    def _create_secret(self, secret):
+        # api_instance = client.CoreV1Api()
+
+        api_response = self.api_instance.create_namespaced_secret(
+            namespace=self.namespace,
+            body=secret,
+        )
+        print(f"Secret {api_response.metadata.name} created in the namespace {api_response.metadata.namespace}")
+
+    def create_secret(self, path_docker_config, name_secret="my-secret"):
+        secret = self._get_secret(path_docker_config, name_secret)
+
+
+        self._create_secret(secret)
+
+
+
+
 
 def apply_yamls(image_pull_policy, deployment):
     yaml_files = glob.glob(deployment.get_deployment_dir() + "/*.yaml")
@@ -246,6 +302,9 @@ def create_dockerinfo(base_path, deployment):
     if os.path.exists(dockerfilename):
         dockerInfo.update_node_port(deployment.port_mapping, dockerfilename)
 
+def create_secret(namespace, path_docker_config, name_secret):
+    kubernetesSecret = KubernetesSecret(namespace=namespace)
+    kubernetesSecret.create_secret(path_docker_config=path_docker_config, name_secret=name_secret)
 
 def run_client(args):
     namespace = args.namespace
@@ -262,13 +321,13 @@ def run_client(args):
 
     create_dockerinfo(base_path, deployment)
 
+    if args.path_docker_secret and args.secret_name:
+        create_secret(namespace=namespace, path_docker_config=args.path_docker_secret, name_secret=args.secret_name)
+
     if deployment.is_orchestrator_present(base_path):
         print("Node IP-address : " + deployment.get_node_ip_address())
         print("Orchestrator Port is : " + str(deployment.port_mapping.get('orchestrator')))
         print("Please run python orchestrator_client/orchestrator_client.py --endpoint=%s:%d --basepath=./" % (deployment.get_node_ip_address(), deployment.port_mapping.get('orchestrator')))
-    else:
-        print("Thank you")
-
 
 
 def main():
@@ -279,6 +338,10 @@ def main():
                            help='imagepullpolicy for kubernetes deployment ')
     my_parser.add_argument('--base_path'         , '-bp',  action='store', type=str, required=False, default=os.getcwd(),
                            help='basepath of solution')
+    my_parser.add_argument('--path_docker_secret'         , '-ps',  action='store', type=str, required=False,
+                           help='path of docker secret')
+    my_parser.add_argument('--secret_name'         , '-sn',  action='store', type=str, required=False,
+                           help='name of docker secret')
 
     args = my_parser.parse_args()
 
