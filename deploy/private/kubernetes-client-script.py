@@ -199,13 +199,8 @@ class Deployment:
         return name1[7]
 
     def get_node_ip_address(self):
-        process = subprocess.run(['kubectl', 'get', 'node', '-o', 'wide'], check=True,
-                                 stdout=subprocess.PIPE,
-                                 universal_newlines=True)
-        output = process.stdout
-        output_split = output.split(" ")
-        output_clean = [x for x in output_split if x]
-        return output_clean[14]
+        process = subprocess.run(['hostname', '-I'], check=True, stdout=subprocess.PIPE, universal_newlines=True)
+        return process.stdout.split(" ")[0]
 
     def is_valid_namespace(self):
         existing_namespaces = [x for x in (re.split('[  \n]', self.get_namespaces())) if x]

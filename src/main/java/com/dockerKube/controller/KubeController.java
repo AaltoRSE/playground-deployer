@@ -106,6 +106,7 @@ public class KubeController {
         String probeSchemaPort = (env.getProperty(DockerKubeConstants.PROBE_SCHEMA_PORT) != null) ? env.getProperty(DockerKubeConstants.PROBE_SCHEMA_PORT) : "";
         String nginxImageName = (env.getProperty(DockerKubeConstants.NGINX_IMAGE_NAME) != null) ? env.getProperty(DockerKubeConstants.NGINX_IMAGE_NAME) : "";
         String nexusEndPointURL = (env.getProperty(DockerKubeConstants.NEXUS_END_POINTURL) != null) ? env.getProperty(DockerKubeConstants.NEXUS_END_POINTURL) : "";
+        String federationEndPointURL = (env.getProperty(DockerKubeConstants.FEDERATION_END_POINT_URL) != null) ? env.getProperty(DockerKubeConstants.FEDERATION_END_POINT_URL) : "";
 
         String logstashHost = (env.getProperty(DockerKubeConstants.LOGSTASH_HOST) != null) ? env.getProperty(DockerKubeConstants.LOGSTASH_HOST) : "";
         String logstashIp = (env.getProperty(DockerKubeConstants.LOGSTASH_IP) != null) ? env.getProperty(DockerKubeConstants.LOGSTASH_IP) : "";
