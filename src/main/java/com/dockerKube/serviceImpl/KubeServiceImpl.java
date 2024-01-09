@@ -121,15 +121,17 @@ public class KubeServiceImpl implements KubeService {
 
 	/**
 	 *
-	 * add solution icon and description to zip file: solution_icon.jpg and solution_description.html
+	 * add federation-URL, solution icon and description to zip file: federation-endpoint.url, solution_icon.jpg and solution_description.html
 	 */
 	public void addSolutionInfos(DeploymentBean dBean, HashMap<String, ByteArrayOutputStream> streammap) {
 		ByteArrayOutputStream iout=new ByteArrayOutputStream();
 		ByteArrayOutputStream dout=new ByteArrayOutputStream();
+		ByteArrayOutputStream fout=new ByteArrayOutputStream();
 		String description=null;
 		try {
 			CommonDataServiceRestClientImpl cmnDataService = getClient(dBean.getCmnDataUrl(), dBean.getCmnDataUser(), dBean.getCmnDataPd());
 			iout.write(cmnDataService.getSolutionPicture(dBean.getSolutionId()));
+			fout.write(dBean.getFederationEndPointURL().getBytes());
 			for(MLPCatalog catalog: cmnDataService.getSolutionCatalogs(dBean.getSolutionId())) {
 				String catalogId = catalog.getCatalogId();
 				try {
@@ -142,6 +144,7 @@ public class KubeServiceImpl implements KubeService {
 			}
 			streammap.put("solution_icon.png", iout);
 			streammap.put("solution_description.html", dout);
+			streammap.put("federation-endpoint.url", fout);
 		} catch (Exception e) {
 			logger.error("error getting solutionInfos()", e);
 		}

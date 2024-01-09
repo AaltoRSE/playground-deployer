@@ -151,6 +151,7 @@ public class KubeController {
         dBean.setLogstashHost(logstashHost);
         dBean.setLogstashIp(logstashIp);
         dBean.setLogstashPort(logstashPort);
+        dBean.setFederationEndPointURL(federationEndPointURL);
 
         log.debug("probeExternalPort " + probeExternalPort);
         log.debug("probeSchemaPort " + probeSchemaPort);

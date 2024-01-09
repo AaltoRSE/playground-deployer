@@ -69,6 +69,7 @@ public class DeploymentBean {
 	private String logstashPort;
 	private Map<String, String> solutionRevisionIdMap;
 	private String solutionName;
+	private String federationEndPointURL;
 
 
 	public String getSolutionName() { return solutionName; }
@@ -357,4 +358,11 @@ public class DeploymentBean {
 		this.solutionRevisionIdMap = solutionRevisionIdMap;
 	}
 
+	public void setFederationEndPointURL(String federationEndPointURL) {
+		this.federationEndPointURL=federationEndPointURL;
+	}
+
+	public String getFederationEndPointURL() {
+		return federationEndPointURL;
+	}
 }
