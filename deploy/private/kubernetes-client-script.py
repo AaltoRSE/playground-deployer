@@ -7,6 +7,8 @@ import subprocess
 import argparse
 from kubernetes import client, config
 import base64
+from pathlib import Path
+from urllib.parse import urlparse
 
 
 class DockerInfo:
@@ -199,8 +201,11 @@ class Deployment:
         return name1[7]
 
     def get_node_ip_address(self):
-        process = subprocess.run(['hostname', '-I'], check=True, stdout=subprocess.PIPE, universal_newlines=True)
-        return process.stdout.split(" ")[0]
+        with open(Path.home() / ".kube" / "config") as f:
+            lines = f.readlines()
+        server_line=[line.strip() for line in lines if line.strip().startswith("server:") ][0]
+        server_url=server_line.split(':',1)[1].strip()
+        return urlparse(server_url).hostname
 
     def is_valid_namespace(self):
         existing_namespaces = [x for x in (re.split('[  \n]', self.get_namespaces())) if x]
