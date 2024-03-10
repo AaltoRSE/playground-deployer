@@ -9,7 +9,7 @@ plugins {
 
 
 group = 'graphene'
-version = '3.30'
+version = '3.31'
 sourceCompatibility = '17'
 println 'build revision: '+versioning.info.full+versioning.info.dirty
 
@@ -117,4 +117,22 @@ task pushPlaygroundImage(type: DockerPushImage) {
 		username = System.properties['docker.username']
 		password = System.properties['docker.password']
 	}
+}
+
+task createLocalImage(type: DockerBuildImage) {
+	dependsOn createPlaygroundDockerfile
+
+	docker {
+		springBootApplication {
+			baseImage = 'eclipse-temurin:17-jre'
+		}
+	}
+
+	images.add("localhost:5000/${project.group}/${project.name}:${project.version}")
+	image_list = images
+}
+
+task pushImageLocally(type: DockerPushImage) {
+	dependsOn createLocalImage
+	images = image_list
 }

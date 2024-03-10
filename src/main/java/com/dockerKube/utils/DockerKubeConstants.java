@@ -298,5 +298,5 @@ public class DockerKubeConstants {
 	public static final String MODEL_NAME="modelName";
 	public static final String SOLUTION_ID="solutionId";
 
-    public static final String FEDERATION_END_POINT_URL = "federationEndPointURL";
+    public static final String FEDERATION_END_POINT_URL = "federationEndpointUrl";
 }

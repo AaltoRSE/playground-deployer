@@ -672,6 +672,11 @@ public class KubeServiceImpl implements KubeService {
 			}
 
 		}
+
+		bOutput = new ByteArrayOutputStream(12);
+		bOutput.write(DockerKubeConstants.FEDERATION_END_POINT_URL.getBytes());
+		hmap.put("source_system_url.txt", bOutput);
+
 		addSolutionInfos(dBean, hmap);
 
 		baos = new ByteArrayOutputStream();
@@ -1419,11 +1424,13 @@ public class KubeServiceImpl implements KubeService {
 				hmap.put("deployments/jupyter-service.yaml", bOutput);
 			}
 
-
-
 			bOutput = new ByteArrayOutputStream(12);
 			bOutput.write(dBean.getSolutionName().getBytes());
 			hmap.put("modelname.txt", bOutput);
+
+			bOutput = new ByteArrayOutputStream(12);
+			bOutput.write(DockerKubeConstants.FEDERATION_END_POINT_URL.getBytes());
+			hmap.put("source_system_url.txt", bOutput);
 
 			addSolutionInfos(dBean, hmap);
 
