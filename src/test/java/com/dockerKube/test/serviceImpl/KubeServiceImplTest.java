@@ -57,6 +57,7 @@ public class KubeServiceImplTest {
 		dBean.setCmnDataPd("password");
 		dBean.setCmnDataUrl("https://dataurl");
 		dBean.setCmnDataUser("datauser");
+		dBean.setFederationEndPointURL("federation:31245");
 		byteArray=impl.createCompositeSolutionZip(dBean);
 		assertNotNull(byteArray);
 		logger.info("createCompositeSolutionZipTest End");

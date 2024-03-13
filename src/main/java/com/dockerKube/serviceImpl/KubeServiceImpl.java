@@ -674,7 +674,7 @@ public class KubeServiceImpl implements KubeService {
 		}
 
 		bOutput = new ByteArrayOutputStream(12);
-		bOutput.write(DockerKubeConstants.FEDERATION_END_POINT_URL.getBytes());
+		bOutput.write(dBean.getFederationEndPointURL().getBytes());
 		hmap.put("source_system_url.txt", bOutput);
 
 		addSolutionInfos(dBean, hmap);
@@ -1429,7 +1429,7 @@ public class KubeServiceImpl implements KubeService {
 			hmap.put("modelname.txt", bOutput);
 
 			bOutput = new ByteArrayOutputStream(12);
-			bOutput.write(DockerKubeConstants.FEDERATION_END_POINT_URL.getBytes());
+			bOutput.write(dBean.getFederationEndPointURL().getBytes());
 			hmap.put("source_system_url.txt", bOutput);
 
 			addSolutionInfos(dBean, hmap);
