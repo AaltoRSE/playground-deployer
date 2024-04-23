@@ -40,13 +40,14 @@ class DockerInfo:
 
 
 class Deployment:
-    def __init__(self, namespace, start_port=30000, end_port=32767, base_path=""):
+    def __init__(self, namespace, start_port=30000, end_port=32767, base_path="", image_env=[]):
         self.namespace = namespace
         self.base_path = base_path
         self.start_port = start_port
         self.end_port = end_port
         self.port_mapping = dict()
         self.port = None
+        self.image_env=image_env
 
         if not self.is_valid_namespace():
             raise("deployment is invalid")
@@ -92,6 +93,30 @@ class Deployment:
         except Exception:
             # if we process a file that is not a deployment - warn
             print("WARNING: set_image_pull_policy encountered incompatible input file", deployment_file_name)
+
+    def set_image_env(self, deployment_file_name):
+        with open(deployment_file_name) as f:
+            doc = yaml.safe_load(f)
+
+        try:
+            containers = doc['spec']['template']['spec']['containers']
+            for container in containers:
+                image = container.get('image')
+                for env_entry in self.image_env:
+                    p=re.compile(env_entry['docker_image_pattern'])
+                    if(p.match(image)):
+                        print(f"set env {env_entry['name']} on image {image}")
+                        if container['env'] is None:
+                            container['env']=[]
+                        container['env'].append({'name': env_entry['name'], 'value': env_entry['value']})
+
+            with open(deployment_file_name, "w") as f:
+                yaml.dump(doc, f)
+        except Exception as e:
+            # if we process a file that is not a deployment - warn
+            print("WARNING: set_image_env encountered incompatible input file", deployment_file_name)
+            print(e)
+
 
     def set_port(self, file_name, port):
         print("set_port in", file_name, "to", port)
@@ -144,6 +169,7 @@ class Deployment:
             self.set_port(file_name, port)
         else:
             self.set_image_pull_policy(file_name, image_pull_policy)
+            self.set_image_env(file_name)
 
         process = self.apply_yaml_process(file_name)
 
@@ -306,6 +332,18 @@ def create_secret(namespace, path_docker_config, name_secret):
     kubernetesSecret = KubernetesSecret(namespace=namespace)
     kubernetesSecret.create_secret(path_docker_config=path_docker_config, name_secret=name_secret)
 
+def read_image_environment(args):
+    image_env=[]
+    try:
+        with open(args.config_file, "r") as jsonFile:
+            data = json.load(jsonFile)
+            image_env=data['environment_variables']
+            #print(f'environment: {image_env}')
+    except Exception as e:
+        print(f"error reading config file: {e}")
+    return image_env
+
+
 def run_client(args):
     namespace = args.namespace
     print(f"namespace = {namespace}")
@@ -313,8 +351,9 @@ def run_client(args):
     print(f"image_pull_policy = {image_pull_policy}")
     base_path=args.base_path
     print(f"base_path = {base_path}")
+    image_environments=read_image_environment(args)
 
-    deployment = Deployment(namespace=namespace, base_path=base_path)
+    deployment = Deployment(namespace=namespace, base_path=base_path, image_env=image_environments)
 
 
     apply_yamls(image_pull_policy, deployment)
@@ -342,6 +381,8 @@ def main():
                            help='path of docker secret')
     my_parser.add_argument('--secret_name'         , '-sn',  action='store', type=str, required=False,
                            help='name of docker secret')
+    my_parser.add_argument('--config-file'         , '-cf',  action='store', type=str, required=False, default='/home/ai4eu/playground-app/config.json',
+                           help='absolute path to playground-app config.json')
 
     args = my_parser.parse_args()
 
