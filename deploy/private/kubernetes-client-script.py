@@ -9,7 +9,7 @@ from kubernetes import client, config
 import base64
 from pathlib import Path
 from urllib.parse import urlparse
-
+import traceback
 
 class DockerInfo:
     def __init__(self):
@@ -106,16 +106,15 @@ class Deployment:
                     p=re.compile(env_entry['docker_image_pattern'])
                     if(p.match(image)):
                         print(f"set env {env_entry['name']} on image {image}")
-                        if container['env'] is None:
+                        if not 'env' in container:
                             container['env']=[]
                         container['env'].append({'name': env_entry['name'], 'value': env_entry['value']})
 
             with open(deployment_file_name, "w") as f:
                 yaml.dump(doc, f)
-        except Exception as e:
-            # if we process a file that is not a deployment - warn
-            print("WARNING: set_image_env encountered incompatible input file", deployment_file_name)
-            print(e)
+        except Exception:
+            print("ERROR: set_image_env encountered incompatible input file", deployment_file_name)
+            print(traceback.format_exc())
 
 
     def set_port(self, file_name, port):
