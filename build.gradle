@@ -3,8 +3,8 @@ plugins {
 	id 'io.spring.dependency-management' version '1.0.11.RELEASE'
 	id 'java'
 	id 'com.bmuschko.docker-spring-boot-application' version '7.3.0'
-	id 'net.nemerosa.versioning' version '2.15.1'
-        id 'org.cyclonedx.bom' version '1.7.2'
+	id 'net.nemerosa.versioning' version '3.1.0'
+	id 'org.cyclonedx.bom' version '1.7.2'
 }
 
 
@@ -74,27 +74,16 @@ tasks.named('test') {
 
 import com.bmuschko.gradle.docker.tasks.image.*
 
-task createPlaygroundDockerfile(type: Dockerfile) {
+task createFederationDockerfile(type: Dockerfile) {
 	dependsOn copyTask
 	from 'eclipse-temurin:17-jre'
-	addFile "private/kubernetes-client-script.py", "/maven/home/deploy/private/kubernetes-client-script.py"
-	addFile "private/jupyter-deployment-script.py", "/maven/home/deploy/private/jupyter-deployment-script.py"
-	addFile "deployment-readme.txt", "/maven/home/docs/deployment-readme.txt"
-	addFile "private/orchestrator_client/orchestrator_client.py", "/maven/home/deploy/private/orchestrator_client/orchestrator_client.py"
-	addFile "private/orchestrator_client/status_client.py", "/maven/home/deploy/private/orchestrator_client/status_client.py"
-	addFile "private/orchestrator_client/orchestrator_pb2_grpc.py", "/maven/home/deploy/private/orchestrator_client/orchestrator_pb2_grpc.py"
-	addFile	"private/orchestrator_client/orchestrator_pb2.py", "/maven/home/deploy/private/orchestrator_client/orchestrator_pb2.py"
-	addFile	"private/protobuf/orchestrator.proto", "/maven/home/deploy/private/protobuf/orchestrator.proto"
-	addFile	"private/requirements.txt", "/maven/home/deploy/private/requirements.txt"
-	addFile	"private/jupyter-deployment.yaml", "/maven/home/deploy/private/jupyter-deployment.yaml"
-	addFile	"private/jupyter-service.yaml", "/maven/home/deploy/private/jupyter-service.yaml"
 	addFile "${project.name}-${project.version}.jar", "maven/${project.name}-${project.version}.jar"
 }
 
 def image_list = []
 
-task createPlaygroundImage(type: DockerBuildImage) {
-	dependsOn createPlaygroundDockerfile
+task createFederationImage(type: DockerBuildImage) {
+	dependsOn createFederationDockerfile
 
 	docker {
 		springBootApplication {
@@ -110,8 +99,8 @@ task createPlaygroundImage(type: DockerBuildImage) {
 	image_list = images
 }
 
-task pushPlaygroundImage(type: DockerPushImage) {
-	dependsOn createPlaygroundImage
+task pushFederationImage(type: DockerPushImage) {
+	dependsOn createFederationImage
 	images = image_list
 	registryCredentials {
 		username = System.properties['docker.username']
@@ -120,7 +109,7 @@ task pushPlaygroundImage(type: DockerPushImage) {
 }
 
 task createLocalImage(type: DockerBuildImage) {
-	dependsOn createPlaygroundDockerfile
+	dependsOn createFederationDockerfile
 
 	docker {
 		springBootApplication {
