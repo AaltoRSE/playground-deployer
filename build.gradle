@@ -4,7 +4,7 @@ plugins {
 	id 'java'
 	id 'com.bmuschko.docker-spring-boot-application' version '7.3.0'
 	id 'net.nemerosa.versioning' version '3.1.0'
-	id 'org.cyclonedx.bom' version '1.7.2'
+        id 'org.cyclonedx.bom' version '1.7.2'
 }
 
 
@@ -25,7 +25,7 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
-	implementation 'ai4eu.common-dataservice:cmn-data-svc-client:3.3'
+	implementation 'ai4eu.common-dataservice:cmn-data-svc-client:3.2.0-ai4eu-v1'
 	implementation 'org.acumos.acumos-nexus-client:acumos-nexus-client:2.2.1'
 	implementation 'com.googlecode.json-simple:json-simple:1.1.1'
 	implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.13.2'
@@ -74,16 +74,27 @@ tasks.named('test') {
 
 import com.bmuschko.gradle.docker.tasks.image.*
 
-task createFederationDockerfile(type: Dockerfile) {
+task createPlaygroundDockerfile(type: Dockerfile) {
 	dependsOn copyTask
 	from 'eclipse-temurin:17-jre'
+	addFile "private/kubernetes-client-script.py", "/maven/home/deploy/private/kubernetes-client-script.py"
+	addFile "private/jupyter-deployment-script.py", "/maven/home/deploy/private/jupyter-deployment-script.py"
+	addFile "deployment-readme.txt", "/maven/home/docs/deployment-readme.txt"
+	addFile "private/orchestrator_client/orchestrator_client.py", "/maven/home/deploy/private/orchestrator_client/orchestrator_client.py"
+	addFile "private/orchestrator_client/status_client.py", "/maven/home/deploy/private/orchestrator_client/status_client.py"
+	addFile "private/orchestrator_client/orchestrator_pb2_grpc.py", "/maven/home/deploy/private/orchestrator_client/orchestrator_pb2_grpc.py"
+	addFile	"private/orchestrator_client/orchestrator_pb2.py", "/maven/home/deploy/private/orchestrator_client/orchestrator_pb2.py"
+	addFile	"private/protobuf/orchestrator.proto", "/maven/home/deploy/private/protobuf/orchestrator.proto"
+	addFile	"private/requirements.txt", "/maven/home/deploy/private/requirements.txt"
+	addFile	"private/jupyter-deployment.yaml", "/maven/home/deploy/private/jupyter-deployment.yaml"
+	addFile	"private/jupyter-service.yaml", "/maven/home/deploy/private/jupyter-service.yaml"
 	addFile "${project.name}-${project.version}.jar", "maven/${project.name}-${project.version}.jar"
 }
 
 def image_list = []
 
-task createFederationImage(type: DockerBuildImage) {
-	dependsOn createFederationDockerfile
+task createPlaygroundImage(type: DockerBuildImage) {
+	dependsOn createPlaygroundDockerfile
 
 	docker {
 		springBootApplication {
@@ -99,8 +110,8 @@ task createFederationImage(type: DockerBuildImage) {
 	image_list = images
 }
 
-task pushFederationImage(type: DockerPushImage) {
-	dependsOn createFederationImage
+task pushPlaygroundImage(type: DockerPushImage) {
+	dependsOn createPlaygroundImage
 	images = image_list
 	registryCredentials {
 		username = System.properties['docker.username']
@@ -109,7 +120,7 @@ task pushFederationImage(type: DockerPushImage) {
 }
 
 task createLocalImage(type: DockerBuildImage) {
-	dependsOn createFederationDockerfile
+	dependsOn createPlaygroundDockerfile
 
 	docker {
 		springBootApplication {
