@@ -123,8 +123,7 @@ class Jupyter:
     def _get_pod_name_jupyter(self):
         #ToDo Define final image name.
         self.logger.info("_get_pod_name_jupyter()")
-        JUPYTER_IMAGES = ["registry.gitlab.cc-asp.fraunhofer.de/recognaize-acumos/jupyter-connect:latest", \
-                          "hub.cc-asp.fraunhofer.de/recognaize-acumos/jupyter-connect", "hub.cc-asp.fraunhofer.de/recognaize-acumos/jupyter-connect:latest"]
+        JUPYTER_IMAGES = ["cicd.ai4eu-dev.eu/graphene/jupyter-connect:1.1","cicd.ai4eu-dev.eu/graphene/jupyter-connect:latest"]
 
         image_names, container_names_yaml = self.__get_image_container_names()
 
