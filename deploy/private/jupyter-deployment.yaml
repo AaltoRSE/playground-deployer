@@ -15,14 +15,12 @@ spec:
       labels:
         app: jupyter-connect
     spec:
-      imagePullSecrets:
-      - name: acumos-registry
       containers:
       - name: jupyter-connect
         env:
           - name: SHARED_FOLDER_PATH
             value: /data/shared
-        image: hub.cc-asp.fraunhofer.de/recognaize-acumos/jupyter-connect
+        image: cicd.ai4eu-dev.eu:/graphene/jupyter-connect:1.1
         ports:
         - name: protobuf-api
           containerPort: 8061
