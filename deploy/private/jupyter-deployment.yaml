@@ -20,7 +20,7 @@ spec:
         env:
           - name: SHARED_FOLDER_PATH
             value: /data/shared
-        image: cicd.ai4eu-dev.eu:/graphene/jupyter-connect:1.1
+        image: cicd.ai4eu-dev.eu/graphene/jupyter-connect:1.1
         ports:
         - name: protobuf-api
           containerPort: 8061
