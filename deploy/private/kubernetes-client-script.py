@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 import traceback
 
+
 class DockerInfo:
     def __init__(self):
         print("")
@@ -40,29 +41,31 @@ class DockerInfo:
 
 
 class Deployment:
-    def __init__(self, namespace, start_port=30000, end_port=32767, base_path="", image_env=[]):
+    def __init__(
+        self, namespace, start_port=30000, end_port=32767, base_path="", image_env=[]
+    ):
         self.namespace = namespace
         self.base_path = base_path
         self.start_port = start_port
         self.end_port = end_port
         self.port_mapping = dict()
         self.port = None
-        self.image_env=image_env
+        self.image_env = image_env
 
         if not self.is_valid_namespace():
-            raise("deployment is invalid")
+            raise ("deployment is invalid")
         if not os.path.isdir(self.get_deployment_dir()):
             print(base_path)
             print(self.get_deployment_dir())
-            raise("Path to the target directory is invalid :  ")
+            raise ("Path to the target directory is invalid :  ")
 
     def get_deployment_dir(self):
-        return os.path.join(self.base_path,"deployments")
+        return os.path.join(self.base_path, "deployments")
 
     def get_next_free_port(self):
-        if(self.port is None):
+        if self.port is None:
             self.port = 8061
-        else: 
+        else:
             self.port = self.port + 1
         return self.port
 
@@ -72,69 +75,94 @@ class Deployment:
     def is_service(self, file_name):
         with open(file_name) as f:
             doc = yaml.safe_load(f)
-        return doc['kind'] == "Service"
+        return doc["kind"] == "Service"
 
     def set_image_pull_policy(self, deployment_file_name, new_policy):
         with open(deployment_file_name) as f:
             doc = yaml.safe_load(f)
 
         try:
-            containers = doc['spec']['template']['spec']['containers']
+            containers = doc["spec"]["template"]["spec"]["containers"]
             for container in containers:
-                old_policy = container.get('imagePullPolicy', None)
+                old_policy = container.get("imagePullPolicy", None)
                 if old_policy is not None and old_policy != new_policy:
-                    print("set_image_pull_policy changing imagePullPolicy from", old_policy, "to", new_policy)
+                    print(
+                        "set_image_pull_policy changing imagePullPolicy from",
+                        old_policy,
+                        "to",
+                        new_policy,
+                    )
                 elif old_policy is None:
-                    print("set_image_pull_policy setting imagePullPolicy to", new_policy)
-                container['imagePullPolicy'] = new_policy
+                    print(
+                        "set_image_pull_policy setting imagePullPolicy to", new_policy
+                    )
+                container["imagePullPolicy"] = new_policy
 
             with open(deployment_file_name, "w") as f:
                 yaml.dump(doc, f)
         except Exception:
             # if we process a file that is not a deployment - warn
-            print("WARNING: set_image_pull_policy encountered incompatible input file", deployment_file_name)
+            print(
+                "WARNING: set_image_pull_policy encountered incompatible input file",
+                deployment_file_name,
+            )
 
     def set_image_env(self, deployment_file_name):
         with open(deployment_file_name) as f:
             doc = yaml.safe_load(f)
 
         try:
-            containers = doc['spec']['template']['spec']['containers']
+            containers = doc["spec"]["template"]["spec"]["containers"]
             for container in containers:
-                image = container.get('image')
+                image = container.get("image")
                 for env_entry in self.image_env:
-                    p=re.compile(env_entry['docker_image_pattern'])
-                    if(p.match(image)):
+                    p = re.compile(env_entry["docker_image_pattern"])
+                    if p.match(image):
                         print(f"set env {env_entry['name']} on image {image}")
-                        if not 'env' in container:
-                            container['env']=[]
-                        container['env'].append({'name': env_entry['name'], 'value': env_entry['value']})
+                        if not "env" in container:
+                            container["env"] = []
+                        container["env"].append(
+                            {"name": env_entry["name"], "value": env_entry["value"]}
+                        )
 
             with open(deployment_file_name, "w") as f:
                 yaml.dump(doc, f)
         except Exception:
-            print("ERROR: set_image_env encountered incompatible input file", deployment_file_name)
+            print(
+                "ERROR: set_image_env encountered incompatible input file",
+                deployment_file_name,
+            )
             print(traceback.format_exc())
-
 
     def set_port(self, file_name, port):
         print("set_port in", file_name, "to", port)
         with open(file_name) as f:
             doc = yaml.safe_load(f)
 
-        doc['spec']['ports'][0]['port'] = port
+        doc["spec"]["ports"][0]["port"] = port
 
-        name = doc['metadata']['name']
+        name = doc["metadata"]["name"]
         self.port_mapping[name] = port
 
         with open(file_name, "w") as f:
             yaml.dump(doc, f)
 
     def get_node_port(self, service):
-        process = subprocess.run([
-            'kubectl', '-n', self.namespace, 'get', 'svc', service, '-o',
-            'go-template={{range .spec.ports}}{{if .nodePort}}{{.nodePort}}{{end}}{{end}}'],
-            check=True, stdout=subprocess.PIPE, universal_newlines=True)
+        process = subprocess.run(
+            [
+                "kubectl",
+                "-n",
+                self.namespace,
+                "get",
+                "svc",
+                service,
+                "-o",
+                "go-template={{range .spec.ports}}{{if .nodePort}}{{.nodePort}}{{end}}{{end}}",
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            universal_newlines=True,
+        )
 
         return int(process.stdout)
 
@@ -142,12 +170,12 @@ class Deployment:
         with open(file_name) as f:
             doc = yaml.safe_load(f)
 
-        service_name = doc['metadata']['name']
+        service_name = doc["metadata"]["name"]
         node_port = self.get_node_port(service_name)
-        
+
         print("set_node_port in", file_name, "to", node_port)
-        doc['spec']['ports'][0]['nodePort'] = node_port
-        doc['spec']['ports'][0]['port'] = node_port
+        doc["spec"]["ports"][0]["nodePort"] = node_port
+        doc["spec"]["ports"][0]["port"] = node_port
 
         self.port_mapping[service_name] = node_port
 
@@ -155,11 +183,14 @@ class Deployment:
             yaml.dump(doc, f)
 
     def apply_yaml_process(self, file_name):
-        process = subprocess.run(['kubectl', '-n', self.namespace, 'apply', '-f', file_name], check=True,
-                                 stdout=subprocess.PIPE,
-                                 universal_newlines=True)
+        process = subprocess.run(
+            ["kubectl", "-n", self.namespace, "apply", "-f", file_name],
+            check=True,
+            stdout=subprocess.PIPE,
+            universal_newlines=True,
+        )
         return process
-    
+
     def apply_yaml(self, file_name, image_pull_policy):
         print("apply_yaml:", file_name)
 
@@ -183,42 +214,122 @@ class Deployment:
 
     def delete_deployment_services(self, names):
         for name in names:
-            process = subprocess.run(['kubectl', '-n', self.namespace, 'delete', str(name)], check=True,
-                                     stdout=subprocess.PIPE,
-                                     universal_newlines=True)
+            process = subprocess.run(
+                ["kubectl", "-n", self.namespace, "delete", str(name)],
+                check=True,
+                stdout=subprocess.PIPE,
+                universal_newlines=True,
+            )
         output = process.stdout
         print("delete_deployment_services output %s" % output)
 
     def create_web_ui_service_yaml(self, file_service):
-        print("file_name of service yaml =", file_service)        
+        print("file_name of service yaml =", file_service)
         with open(file_service) as f:
             doc = yaml.safe_load(f)
 
         port_name = "webui"
         target_port = 8062
-        name = (doc['metadata']['name']) + "webui"
-        doc['metadata']['name'] = name
-            
-        doc['spec']['ports'][0]['name'] = port_name
-        doc['spec']['ports'][0]['targetPort'] = target_port
+        name = (doc["metadata"]["name"]) + "webui"
+        doc["metadata"]["name"] = name
 
-        assert file_service.endswith('.yaml')
-        file_service_web_ui = file_service[:-5] + '_webui.yaml'
+        # Make it reachable inside kubernetes
+        doc["metadata"]["labels"] = {
+            "app.kubernetes.io/name": name,
+            "app.kubernetes.io/component": "server",
+        }
+
+        doc["spec"]["ports"][0]["name"] = port_name
+        doc["spec"]["ports"][0]["targetPort"] = target_port
+
+        assert file_service.endswith(".yaml")
+        file_service_web_ui = file_service[:-5] + "_webui.yaml"
+        with open(file_service_web_ui, "w") as f:
+            yaml.dump(doc, f)
+
+        return file_service_web_ui
+
+    def create_web_ui_ingress_yaml(
+        self,
+        file_ingress,
+        file_service,
+        web_ui_service,
+        hostname,
+        fixed_host=None,
+        letsencrypt_ingress=False,
+    ):
+        print("file_name of service yaml =", file_ingress)
+        with open(file_ingress) as f:
+            doc = yaml.safe_load(f)
+        with open(file_service) as f:
+            service_doc = yaml.safe_load(f)
+        with open(web_ui_service) as f:
+            web_ui_service_doc = yaml.safe_load(f)
+        port_name = "ingress"
+        target_port = service_doc["spec"]["ports"][0]["port"]
+
+        name = (doc["metadata"]["name"]) + "ingress"
+        # Same namespace as service
+        doc["metadata"]["name"] = name
+        doc["metadata"]["namespace"] = service_doc["metadata"]["namespace"]
+        if letsencrypt_ingress:
+            if not "annotations" in doc["metadata"]:
+                doc["metadata"]["annotations"] = {
+                    "cert-manager.io/cluster-issuer": "letsencrypt-prod"
+                }
+            else:
+                doc["metadata"]["annotations"][
+                    "cert-manager.io/cluster-issuer"
+                ] = "letsencrypt-prod"
+
+        doc["spec"]["ports"][0]["name"] = port_name
+        doc["spec"]["ports"][0]["targetPort"] = target_port
+        # TODO: Change this to the actual domain name
+        if fixed_host == None:
+            doc["spec"]["tls"][0]["hosts"] = [
+                service_doc["metadata"]["name"] + hostname
+            ]
+            doc["spec"]["rules"][0]["host"] = service_doc["metadata"]["name"] + hostname
+        else:
+            doc["spec"]["tls"][0]["hosts"] = [fixed_host + hostname]
+            doc["spec"]["rules"][0]["host"] = fixed_host + hostname
+
+        # set the secret name used for letsencrypt
+        doc["spec"]["tls"][0]["secretName"] = (
+            service_doc["metadata"]["name"] + "-ingress-secret"
+        )
+
+        doc["spec"]["rules"][0]["http"]["paths"][0]["backend"]["service"]["name"] = (
+            web_ui_service_doc["metadata"]["name"]
+        )
+        doc["spec"]["rules"][0]["http"]["paths"][0]["backend"]["service"]["port"] = {
+            "number": web_ui_service_doc["spec"]["ports"][0]["port"]
+        }
+
+        assert file_service.endswith(".yaml")
+        file_service_web_ui = file_service[:-5] + "_ingress.yaml"
         with open(file_service_web_ui, "w") as f:
             yaml.dump(doc, f)
 
         return file_service_web_ui
 
     def get_namespaces(self):
-        process = subprocess.run(['kubectl', 'get', 'namespaces'], check=True,
-                                 stdout=subprocess.PIPE,
-                                 universal_newlines=True)
+        process = subprocess.run(
+            ["kubectl", "get", "namespaces"],
+            check=True,
+            stdout=subprocess.PIPE,
+            universal_newlines=True,
+        )
         namespaces = process.stdout
         return namespaces
 
     def get_service_ip_address(self, namespce, service_name):
-        process = subprocess.run(['kubectl', '-n', namespce, 'get', service_name], check=True, stdout=subprocess.PIPE,
-                                 universal_newlines=True)
+        process = subprocess.run(
+            ["kubectl", "-n", namespce, "get", service_name],
+            check=True,
+            stdout=subprocess.PIPE,
+            universal_newlines=True,
+        )
         # print(process.type())
         output = process.stdout
         name = output.split(" ")
@@ -228,15 +339,19 @@ class Deployment:
     def get_node_ip_address(self):
         with open(Path.home() / ".kube" / "config") as f:
             lines = f.readlines()
-        server_line=[line.strip() for line in lines if line.strip().startswith("server:") ][0]
-        server_url=server_line.split(':',1)[1].strip()
+        server_line = [
+            line.strip() for line in lines if line.strip().startswith("server:")
+        ][0]
+        server_url = server_line.split(":", 1)[1].strip()
         return urlparse(server_url).hostname
 
     def is_valid_namespace(self):
-        existing_namespaces = [x for x in (re.split('[  \n]', self.get_namespaces())) if x]
+        existing_namespaces = [
+            x for x in (re.split("[  \n]", self.get_namespaces())) if x
+        ]
         if existing_namespaces.__contains__(self.namespace):
             index = existing_namespaces.index(self.namespace)
-            if existing_namespaces[index + 1] == 'Active':
+            if existing_namespaces[index + 1] == "Active":
                 print("Given namespace is active ")
                 return True
             else:
@@ -253,24 +368,24 @@ class Deployment:
             if orchestrator_client in files:
                 return True
 
+
 class KubernetesSecret:
     def __init__(self, namespace):
         config.load_kube_config()
         self.api_instance = client.CoreV1Api()
         self.namespace = namespace
+
     def _get_secret_data(self, path_docker_config):
         with open(path_docker_config) as docker_config_file:
             docker_config_json = docker_config_file.read()
         secret_data = {
             ".dockerconfigjson": base64.b64encode(docker_config_json.encode()).decode()
         }
-        
+
         return secret_data
 
     def _get_secret_metadata(self, name_secret):
-        metadata = client.V1ObjectMeta(
-            name=name_secret
-        )
+        metadata = client.V1ObjectMeta(name=name_secret)
         return metadata
 
     def _configure_secret(self, metadata, secret_data):
@@ -279,7 +394,7 @@ class KubernetesSecret:
             kind="Secret",
             data=secret_data,
             metadata=metadata,
-            type="kubernetes.io/dockerconfigjson"
+            type="kubernetes.io/dockerconfigjson",
         )
         return secret
 
@@ -287,8 +402,6 @@ class KubernetesSecret:
         metadata = self._get_secret_metadata(name_secret)
         secret_data = self._get_secret_data(path_docker_config)
         return self._configure_secret(metadata, secret_data)
-        
-        
 
     def _create_secret(self, secret):
         # api_instance = client.CoreV1Api()
@@ -297,47 +410,52 @@ class KubernetesSecret:
             namespace=self.namespace,
             body=secret,
         )
-        print(f"Secret {api_response.metadata.name} created in the namespace {api_response.metadata.namespace}")
+        print(
+            f"Secret {api_response.metadata.name} created in the namespace {api_response.metadata.namespace}"
+        )
 
     def create_secret(self, path_docker_config, name_secret="my-secret"):
         secret = self._get_secret(path_docker_config, name_secret)
 
-
         self._create_secret(secret)
-
-
-
 
 
 def apply_yamls(image_pull_policy, deployment):
     yaml_files = glob.glob(deployment.get_deployment_dir() + "/*.yaml")
     for yaml_file in yaml_files:
-        if yaml_file.endswith('webui.yaml'):
+        if yaml_file.endswith("webui.yaml"):
             continue
         if deployment.is_service(yaml_file):
             yaml_file_web_ui = deployment.create_web_ui_service_yaml(yaml_file)
-            deployment.apply_yaml(file_name=yaml_file_web_ui, image_pull_policy=image_pull_policy)
+            deployment.apply_yaml(
+                file_name=yaml_file_web_ui, image_pull_policy=image_pull_policy
+            )
 
         deployment.apply_yaml(file_name=yaml_file, image_pull_policy=image_pull_policy)
     print(deployment.port_mapping)
 
+
 def create_dockerinfo(base_path, deployment):
     dockerInfo = DockerInfo()
-    dockerfilename = os.path.join(base_path,"dockerinfo.json")
+    dockerfilename = os.path.join(base_path, "dockerinfo.json")
     if os.path.exists(dockerfilename):
         dockerInfo.update_node_port(deployment.port_mapping, dockerfilename)
 
+
 def create_secret(namespace, path_docker_config, name_secret):
     kubernetesSecret = KubernetesSecret(namespace=namespace)
-    kubernetesSecret.create_secret(path_docker_config=path_docker_config, name_secret=name_secret)
+    kubernetesSecret.create_secret(
+        path_docker_config=path_docker_config, name_secret=name_secret
+    )
+
 
 def read_image_environment(args):
-    image_env=[]
+    image_env = []
     try:
         with open(args.config_file, "r") as jsonFile:
             data = json.load(jsonFile)
-            image_env=data['environment_variables']
-            #print(f'environment: {image_env}')
+            image_env = data["environment_variables"]
+            # print(f'environment: {image_env}')
     except Exception as e:
         print(f"error reading config file: {e}")
     return image_env
@@ -346,49 +464,99 @@ def read_image_environment(args):
 def run_client(args):
     namespace = args.namespace
     print(f"namespace = {namespace}")
-    image_pull_policy=args.image_pull_policy
+    image_pull_policy = args.image_pull_policy
     print(f"image_pull_policy = {image_pull_policy}")
-    base_path=args.base_path
+    base_path = args.base_path
     print(f"base_path = {base_path}")
-    image_environments=read_image_environment(args)
+    image_environments = read_image_environment(args)
 
-    deployment = Deployment(namespace=namespace, base_path=base_path, image_env=image_environments)
-
+    deployment = Deployment(
+        namespace=namespace, base_path=base_path, image_env=image_environments
+    )
 
     apply_yamls(image_pull_policy, deployment)
 
     create_dockerinfo(base_path, deployment)
 
     if args.path_docker_secret and args.secret_name:
-        create_secret(namespace=namespace, path_docker_config=args.path_docker_secret, name_secret=args.secret_name)
+        create_secret(
+            namespace=namespace,
+            path_docker_config=args.path_docker_secret,
+            name_secret=args.secret_name,
+        )
 
     if deployment.is_orchestrator_present(base_path):
         print("Node IP-address : " + deployment.get_node_ip_address())
-        print("Orchestrator Port is : " + str(deployment.port_mapping.get('orchestrator')))
-        print("Please run python orchestrator_client/orchestrator_client.py --endpoint=%s:%d --basepath=./" % (deployment.get_node_ip_address(), deployment.port_mapping.get('orchestrator')))
+        print(
+            "Orchestrator Port is : " + str(deployment.port_mapping.get("orchestrator"))
+        )
+        print(
+            "Please run python orchestrator_client/orchestrator_client.py --endpoint=%s:%d --basepath=./"
+            % (
+                deployment.get_node_ip_address(),
+                deployment.port_mapping.get("orchestrator"),
+            )
+        )
 
 
 def main():
     my_parser = argparse.ArgumentParser()
-    my_parser.add_argument('--namespace', '-n', action='store', type=str, required=True,
-                           help='name of namespace is required ')
-    my_parser.add_argument('--image_pull_policy', '-ipp', action='store', type=str, required=False, default="Always",
-                           help='imagepullpolicy for kubernetes deployment ')
-    my_parser.add_argument('--base_path'         , '-bp',  action='store', type=str, required=False, default=os.getcwd(),
-                           help='basepath of solution')
-    my_parser.add_argument('--path_docker_secret'         , '-ps',  action='store', type=str, required=False,
-                           help='path of docker secret')
-    my_parser.add_argument('--secret_name'         , '-sn',  action='store', type=str, required=False,
-                           help='name of docker secret')
-    my_parser.add_argument('--config-file'         , '-cf',  action='store', type=str, required=False, default='/home/ai4eu/playground-app/config.json',
-                           help='absolute path to playground-app config.json')
+    my_parser.add_argument(
+        "--namespace",
+        "-n",
+        action="store",
+        type=str,
+        required=True,
+        help="name of namespace is required ",
+    )
+    my_parser.add_argument(
+        "--image_pull_policy",
+        "-ipp",
+        action="store",
+        type=str,
+        required=False,
+        default="Always",
+        help="imagepullpolicy for kubernetes deployment ",
+    )
+    my_parser.add_argument(
+        "--base_path",
+        "-bp",
+        action="store",
+        type=str,
+        required=False,
+        default=os.getcwd(),
+        help="basepath of solution",
+    )
+    my_parser.add_argument(
+        "--path_docker_secret",
+        "-ps",
+        action="store",
+        type=str,
+        required=False,
+        help="path of docker secret",
+    )
+    my_parser.add_argument(
+        "--secret_name",
+        "-sn",
+        action="store",
+        type=str,
+        required=False,
+        help="name of docker secret",
+    )
+    my_parser.add_argument(
+        "--config-file",
+        "-cf",
+        action="store",
+        type=str,
+        required=False,
+        default="/home/ai4eu/playground-app/config.json",
+        help="absolute path to playground-app config.json",
+    )
 
     args = my_parser.parse_args()
-
 
     run_client(args)
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
