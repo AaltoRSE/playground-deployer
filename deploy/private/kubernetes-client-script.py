@@ -42,15 +42,24 @@ class DockerInfo:
 
 class Deployment:
     def __init__(
-        self, namespace, start_port=30000, end_port=32767, base_path="", image_env=[]
+        self,
+        namespace,
+        start_port=30000,
+        end_port=32767,
+        base_path="",
+        image_env=[],
+        solution_name="",
+        unique_namespace=False,
     ):
         self.namespace = namespace
+        self.solution_name = solution_name
         self.base_path = base_path
         self.start_port = start_port
         self.end_port = end_port
         self.port_mapping = dict()
         self.port = None
         self.image_env = image_env
+        self.unique_namespace = unique_namespace
 
         if not self.is_valid_namespace():
             raise ("deployment is invalid")
@@ -251,27 +260,56 @@ class Deployment:
 
     def create_web_ui_ingress_yaml(
         self,
-        file_ingress,
-        file_service,
-        web_ui_service,
-        hostname,
-        fixed_host=None,
+        file_service: str,
+        file_web_ui_service: str,
+        hostname: str,
         letsencrypt_ingress=False,
     ):
-        print("file_name of service yaml =", file_ingress)
-        with open(file_ingress) as f:
-            doc = yaml.safe_load(f)
+        # Would be better to do this as a template, but not sure,
+        # where to load the template from...
+        # doc = yaml.safe_load(f)
+        doc = {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "Ingress",
+            "metadata": {
+                "name": "ingress_name",
+                "namespace": "namespace",
+                "annotations": {"kubernetes.io/ingress.class": "nginx"},
+            },
+            "spec": {
+                "tls": [{"hosts": ["your_host_name"]}],
+                "rules": [
+                    {
+                        "host": "your_host_name",
+                        "http": {
+                            "paths": [
+                                {
+                                    "path": "/",
+                                    "pathType": "Prefix",
+                                    "backend": {
+                                        "service": {
+                                            "name": "app_name",
+                                            "port": {"number": 80},
+                                        }
+                                    },
+                                }
+                            ]
+                        },
+                    }
+                ],
+            },
+        }
         with open(file_service) as f:
             service_doc = yaml.safe_load(f)
-        with open(web_ui_service) as f:
+        with open(file_web_ui_service) as f:
             web_ui_service_doc = yaml.safe_load(f)
-        port_name = "ingress"
-        target_port = service_doc["spec"]["ports"][0]["port"]
-
-        name = (doc["metadata"]["name"]) + "ingress"
+        target_port = web_ui_service_doc["spec"]["ports"][0]["port"]
+        name = (web_ui_service_doc["metadata"]["name"]) + "ingress"
+        ingress_url = self.namespace + "." + hostname
         # Same namespace as service
         doc["metadata"]["name"] = name
-        doc["metadata"]["namespace"] = service_doc["metadata"]["namespace"]
+        doc["metadata"]["namespace"] = self.namespace
+        service_name = service_doc["metadata"]["name"]
         if letsencrypt_ingress:
             if not "annotations" in doc["metadata"]:
                 doc["metadata"]["annotations"] = {
@@ -281,37 +319,30 @@ class Deployment:
                 doc["metadata"]["annotations"][
                     "cert-manager.io/cluster-issuer"
                 ] = "letsencrypt-prod"
-
-        doc["spec"]["ports"][0]["name"] = port_name
-        doc["spec"]["ports"][0]["targetPort"] = target_port
-        # TODO: Change this to the actual domain name
-        if fixed_host == None:
-            doc["spec"]["tls"][0]["hosts"] = [
-                service_doc["metadata"]["name"] + hostname
+        # Set the tls host and secret if we use letsencrypt
+        if letsencrypt_ingress:
+            doc["spec"]["tls"] = [
+                {
+                    "secretName": name + "-ingress-secret",
+                    "hosts": [service_name + "-" + ingress_url],
+                }
             ]
-            doc["spec"]["rules"][0]["host"] = service_doc["metadata"]["name"] + hostname
-        else:
-            doc["spec"]["tls"][0]["hosts"] = [fixed_host + hostname]
-            doc["spec"]["rules"][0]["host"] = fixed_host + hostname
-
-        # set the secret name used for letsencrypt
-        doc["spec"]["tls"][0]["secretName"] = (
-            service_doc["metadata"]["name"] + "-ingress-secret"
-        )
+        # Set the host
+        doc["spec"]["rules"][0]["host"] = service_name + "-" + ingress_url
 
         doc["spec"]["rules"][0]["http"]["paths"][0]["backend"]["service"]["name"] = (
             web_ui_service_doc["metadata"]["name"]
         )
         doc["spec"]["rules"][0]["http"]["paths"][0]["backend"]["service"]["port"] = {
-            "number": web_ui_service_doc["spec"]["ports"][0]["port"]
+            "number": target_port
         }
 
         assert file_service.endswith(".yaml")
-        file_service_web_ui = file_service[:-5] + "_ingress.yaml"
-        with open(file_service_web_ui, "w") as f:
+        file_service_web_ingress = file_service[:-5] + "_ingress.yaml"
+        with open(file_service_web_ingress, "w") as f:
             yaml.dump(doc, f)
 
-        return file_service_web_ui
+        return file_service_web_ingress
 
     def get_namespaces(self):
         process = subprocess.run(
@@ -346,6 +377,27 @@ class Deployment:
         return urlparse(server_url).hostname
 
     def is_valid_namespace(self):
+        if self.unique_namespace:
+            # We want a unique namespace for this solution.
+            # So we ignore the namespace given, and set the namespace here,
+            # resetting any previous namespace
+            self.namespace = self.solution_name.lower()
+            # We are resetting the namespace of the deployment.
+            print("Deleting namespace")
+            deleted = subprocess.run(
+                ["kubectl", "delete", "namespace", self.namespace],
+                universal_newlines=True,
+            )
+            if deleted.returncode != 0 and deleted.returncode != 1:
+                print(f"Failed to delete namespace {self.namespace}")
+                print(f"Output: {deleted.stdout}")
+            print("Creating namespace")
+            subprocess.run(
+                ["kubectl", "create", "namespace", self.namespace],
+                check=True,
+                stdout=subprocess.PIPE,
+                universal_newlines=True,
+            )
         existing_namespaces = [
             x for x in (re.split("[  \n]", self.get_namespaces())) if x
         ]
@@ -420,15 +472,31 @@ class KubernetesSecret:
         self._create_secret(secret)
 
 
-def apply_yamls(image_pull_policy, deployment):
+def apply_yamls(image_pull_policy, deployment: Deployment, config: dict):
     yaml_files = glob.glob(deployment.get_deployment_dir() + "/*.yaml")
     for yaml_file in yaml_files:
         if yaml_file.endswith("webui.yaml"):
+            continue
+        if yaml_file.endswith("ingress.yaml"):
             continue
         if deployment.is_service(yaml_file):
             yaml_file_web_ui = deployment.create_web_ui_service_yaml(yaml_file)
             deployment.apply_yaml(
                 file_name=yaml_file_web_ui, image_pull_policy=image_pull_policy
+            )
+            # Also set up the ingress for the web service.
+            yaml_file_ingress = deployment.create_web_ui_ingress_yaml(
+                file_service=yaml_file,
+                file_web_ui_service=yaml_file_web_ui,
+                hostname=config["hostname"],
+                letsencrypt_ingress=(
+                    config["letsencrypt_ingress"]
+                    if "letsencrypt_ingress" in config
+                    else False
+                ),
+            )
+            deployment.apply_yaml(
+                file_name=yaml_file_ingress, image_pull_policy=image_pull_policy
             )
 
         deployment.apply_yaml(file_name=yaml_file, image_pull_policy=image_pull_policy)
@@ -469,12 +537,26 @@ def run_client(args):
     base_path = args.base_path
     print(f"base_path = {base_path}")
     image_environments = read_image_environment(args)
+    with open(os.path.join(base_path, "blueprint.json"), "r") as f:
+        blueprint = json.load(f)
+        solution_name = blueprint["name"]
+    with open(args.config_file, "r") as jsonFile:
+        config = json.load(jsonFile)
 
-    deployment = Deployment(
-        namespace=namespace, base_path=base_path, image_env=image_environments
+    unique_namespace = (
+        "unique_deployment_per_solution" in config
+        and config["unique_deployment_per_solution"]
     )
 
-    apply_yamls(image_pull_policy, deployment)
+    deployment = Deployment(
+        namespace=namespace,
+        base_path=base_path,
+        image_env=image_environments,
+        solution_name=solution_name,
+        unique_namespace=unique_namespace,
+    )
+
+    apply_yamls(image_pull_policy, deployment, config=config)
 
     create_dockerinfo(base_path, deployment)
 
